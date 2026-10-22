@@ -1,5 +1,7 @@
 # An answer has four statuses; a failed refresh keeps the data
 
+> **Changed in part** by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md) (2026-10-23, v0.3.0): a failure is mailroom's `is-error-answer?`, the same three shapes.
+
 > Carries over Groundwork v0.5.0's `::store/answer` and doorbell's [The browser keeps answers by question](https://github.com/p4ulcristian/doorbell/blob/main/decisions/2026-10-12-the-browser-keeps-answers-by-question.md).
 
 **Decision:** `@(rf/subscribe [:parlor/answer question])` is one of

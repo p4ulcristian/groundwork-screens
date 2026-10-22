@@ -7,13 +7,14 @@ parlor rebuilds the browser half of Groundwork v0.5.0 (now house, the part of ma
 ## In force
 
 - [parlor is its own library: re-frame over doorbell's question store](2026-10-22-parlor-is-its-own-library.md)
-- [An answer has four statuses; a failed refresh keeps the data](2026-10-22-an-answer-has-four-statuses.md)
-- [Owners hold questions; a page owns its questions](2026-10-22-owners-hold-questions.md), changed in part by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md)
-- [A write's answer asks again what its notes name](2026-10-22-a-write-s-answer-asks-again-what-its-notes-name.md)
-- ["Can I?" reads an answer the app names](2026-10-22-can-i-reads-an-answer-the-app-names.md)
+- [An answer has four statuses; a failed refresh keeps the data](2026-10-22-an-answer-has-four-statuses.md), changed in part by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md)
+- [Owners hold questions; a page owns its questions](2026-10-22-owners-hold-questions.md), changed in part by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md) and [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md)
+- [A write's answer asks again what its notes name](2026-10-22-a-write-s-answer-asks-again-what-its-notes-name.md), changed in part by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md)
+- ["Can I?" reads an answer the app names](2026-10-22-can-i-reads-an-answer-the-app-names.md), changed in part by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md)
 - [Nothing asks before the start](2026-10-22-nothing-asks-before-the-start.md), changed in part by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md)
 - [The page is re-frame data, from mailroom's routing](2026-10-22-the-page-is-re-frame-data.md), changed in part by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md)
 - [Every start setting is required; parlor takes no log](2026-10-22-every-start-setting-is-required.md), changed in part by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md)
 - [The root is drawn by a function, into an element the app names](2026-10-22-the-root-is-drawn-by-a-function.md)
 - [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md)
 - [What parlor leaves out of Groundwork v0.5.0](2026-10-22-what-parlor-leaves-out.md)
+- [parlor uses its libraries' own functions; once-answered waits for an answer on its way; "can I?" reads doorman's message](2026-10-23-parlor-uses-its-libraries-own-functions.md)

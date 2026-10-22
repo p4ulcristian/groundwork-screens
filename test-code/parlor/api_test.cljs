@@ -197,6 +197,33 @@
                                        "told once with the answer, or at once when it is there; nothing for a question nothing holds")
                                    (done))))))))
 
+(rf/reg-event-fx :test/then-once-answered
+                 (fn [_ [_ question tag]]
+                   {:fx [[:dispatch [:parlor/once-answered question [:test/heard tag]]]]}))
+
+(deftest once-answered-waits-for-an-answer-on-its-way
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {:orders/all ["orders"] :orders/move ["orders"]} (fn [_ n] n))
+               _ (start! send-message! {})
+               q [:orders/all {}]]
+           (rf/dispatch-sync [:parlor/watch :orders-page [q]])
+           (after-ms 20
+                     (fn []
+                       (is (= {:status :ready :data 1} (sub [:parlor/answer q])))
+                       (rf/dispatch-sync [:parlor/ask-again q])
+                       (rf/dispatch-sync [:parlor/once-answered q [:test/heard :asked-again]])
+                       (is (= [] @heard) "out now: it waits, not told the old data")
+                       (after-ms 20
+                                 (fn []
+                                   (is (= [[:asked-again 2]] @heard) "told the fresh answer")
+                                   (reset! heard [])
+                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/then-once-answered q :after-write]])
+                                   (after-ms 40
+                                             (fn []
+                                               (is (= [[:after-write 3]] @heard)
+                                                   "after a write that touched its table: the answer the write's change asked for")
+                                               (done))))))))))
+
 (deftest a-write-asks-again-what-it-touched
   (async done
          (let [{:keys [asked failing offline send-message!]}

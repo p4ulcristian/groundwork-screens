@@ -1,5 +1,7 @@
 # A write's answer asks again what its notes name
 
+> **Changed in part** by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md) (2026-10-23, v0.3.0): the tables are told to doorbell with its `hear-changed-table!`.
+
 > Carries over doorbell's [Asking again, and bells that miss nothing](https://github.com/p4ulcristian/doorbell/blob/main/decisions/2026-10-14-asking-again-and-bells-that-miss-nothing.md) ("a write's answer carries its own bell") onto doorbell v0.3.0.
 
 **Decision:** `[:parlor/send [name params] on-answer]` sends a message that changes data through the start's `:send-message!`, the same function the store asks through. It is never kept.

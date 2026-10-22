@@ -28,9 +28,9 @@ the app (house) makes them and hands them to the start.
 | `[:parlor/watch owner questions]` `[:parlor/own owner questions]` `[:parlor/release owner]` | an owner holds questions: adds them, exactly these (shared ones kept), none |
 | `[:parlor/answer question]` (sub) | `{:status :loading}`, `:ready` with `:data`, `:error` with `:error`, `:refresh-error` with the old `:data` and the `:error` |
 | `[:parlor/ask-again question]` | a held question asked again now |
-| `[:parlor/once-answered question event]` | `event` gets the data once: now, or with the next good answer |
+| `[:parlor/once-answered question event]` | `event` gets the data once: now, or, while a fresher answer is on its way (doorbell's `is-question-being-asked?`) or none is there, with the next good answer |
 | `[:parlor/send [name params] event]` | a write; `event` gets `{:status :ready :data …}` or `{:status :error :error …}`; a good answer asks again what its notes name |
-| `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer (`actions-answer-shape`); `scope` is `[kind id]` or a list of them |
+| `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer (`actions-answer-shape`, doorman's `make-my-actions-handler`'s); `scope` is `[kind id]` or a list of them |
 | `[:parlor/page]` (sub) `[:parlor/go-to name path-params]` | the page, `{:name :page :path-params :query}` or nil; a move. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them |
 | `mount-root!` | `[root]` drawn into the element with this id; again after a save |
 
@@ -50,7 +50,7 @@ and send throw `:parlor/asked-before-start`, naming the messages.
                                   :questions-of-pages {:orders/page (fn [{:keys [path-params]}]   ; one for every page
                                                                       [[:orders/of-shop {:shop/id (parse-uuid (:shop-id path-params))}]])
                                                        :about/page  (fn [_] [])}
-                                  :actions-question   [:people/actions {}]   ; nil: every "can I?" is no
+                                  :actions-question   [:doorman/my-actions {}]   ; doorman's handler; nil: every "can I?" is no
                                   :on-answer-failed   [:shop/answer-failed]  ; nil for none
                                   :on-move            nil}])
 

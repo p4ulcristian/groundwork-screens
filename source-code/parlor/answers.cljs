@@ -15,8 +15,9 @@
    - :parlor/ask-again asks a held question again now; one nothing holds
      isn't asked. After a failed first answer it reads as loading.
    - :parlor/once-answered tells an event the data once: now when good
-     data is there, else with the next good answer; a failed answer, or the
-     question let go, tells it nothing.
+     data is there and no fresher answer is on its way, else with the next
+     good answer; a failed answer, or the question let go, tells it
+     nothing.
    - :parlor/send sends a message that changes data. Its event gets
      {:status :ready :data answer} or {:status :error :error answer}. A
      good answer asks again, through doorbell, every watched question that
@@ -27,6 +28,7 @@
   (:require
    [clojure.string :as str]
    [doorbell.api :as doorbell]
+   [mailroom.api :as mailroom]
    [re-frame.core :as rf]))
 
 (def no-answer
@@ -35,14 +37,12 @@
   {:error "No answer from the server."})
 
 (defn failed?
-  "Whether an answer is a failure rather than data: mailroom's refusals,
-   {:error …} or {:errors …} and nothing else, and an answer that didn't
-   fit its shape, which carries :mailroom/errors."
+  "Whether an answer is a failure rather than data: mailroom's error
+   answers (mailroom's is-error-answer?: {:error …} or {:errors …} and
+   nothing else, or an answer carrying :mailroom/errors), doorbell's
+   no-answer among them."
   [answer]
-  (and (map? answer)
-       (or (= #{:error} (set (keys answer)))
-           (= #{:errors} (set (keys answer)))
-           (contains? answer :mailroom/errors))))
+  (mailroom/is-error-answer? answer))
 
 ;; -----------------------------------------------------------------------------
 ;; The rules, as plain functions over parlor's part of the db
@@ -123,16 +123,28 @@
       (= :error (:status entry)) [(assoc-in parlor [:answers question] {:status :loading :owners (:owners entry)}) true]
       :else                      [parlor true])))
 
+(defn find-last-answer
+  "The answer an entry was made from last: its data when ready, else the
+   failure it holds; nil while loading."
+  [{:keys [status data error]}]
+  (case status
+    :ready                  data
+    (:error :refresh-error) error
+    nil))
+
 (defn once-answered
   "Something waits once for a question's data: [parlor data-now-or-nil].
-   With good data there it is told at once; while loading it waits; a
-   question nothing holds, or one that failed, tells it nothing."
-  [parlor question event]
-  (let [{:keys [status] :as entry} (get-in parlor [:answers question])]
+   With good data there and no fresher answer coming (newer-coming?,
+   from doorbell) it is told at once; while loading, or with a fresher
+   answer coming, it waits for the next good answer; a question nothing
+   holds, or one that failed, tells it nothing."
+  [parlor question event newer-coming?]
+  (let [{:keys [status] :as entry} (get-in parlor [:answers question])
+        wait                       #(update-in parlor [:waiting question] (fnil conj []) event)]
     (cond
-      (#{:ready :refresh-error} status) [parlor (conj event (:data entry))]
-      (= :loading status)               [(update-in parlor [:waiting question] (fnil conj []) event) nil]
-      :else                             [parlor nil])))
+      (and (#{:ready :refresh-error} status) (not newer-coming?)) [parlor (conj event (:data entry))]
+      (#{:loading :ready :refresh-error} status)                  [(wait) nil]
+      :else                                                       [parlor nil])))
 
 (defn find-changed-tables
   "The tables a write's notes say it read and wrote, or :any when it
@@ -192,9 +204,8 @@
   (let [tables (find-changed-tables answer message-name)]
     (if (= :any tables)
       (doorbell/hear-missed-changes! store)
-      (let [hear-changed (:doorbell/changed (doorbell/make-sse-handlers store))]
-        (doseq [table tables]
-          (hear-changed {:table table}))))))
+      (doseq [table tables]
+        (doorbell/hear-changed-table! store table)))))
 
 (rf/reg-fx :parlor/-send
            (fn [{:keys [started message-name params on-answer]}]
@@ -258,10 +269,22 @@
                      (cond-> {:db (assoc db :parlor parlor)}
                        ask? (assoc :parlor/-ask-again {:started (:started parlor) :question question})))))
 
+(rf/reg-cofx :parlor/-newer-coming
+             (fn [{:keys [db] :as coeffects} _]
+               (assoc coeffects :parlor/-newer-coming?
+                      (fn [question]
+                        (let [store (get-in db [:parlor :started :store])
+                              entry (get-in db [:parlor :answers question])]
+                          (or (doorbell/is-question-being-asked? store question)
+                              ;; landed in doorbell, its :parlor/-answered still queued
+                              (not (identical? (doorbell/find-kept-answer store question)
+                                               (find-last-answer entry)))))))))
+
 (rf/reg-event-fx :parlor/once-answered
-                 (fn [{:keys [db]} [_ question event]]
+                 [(rf/inject-cofx :parlor/-newer-coming)]
+                 (fn [{:keys [db] newer-coming? :parlor/-newer-coming?} [_ question event]]
                    (started! db "once-answered" [question])
-                   (let [[parlor now] (once-answered (parlor-of db) question event)]
+                   (let [[parlor now] (once-answered (parlor-of db) question event (newer-coming? question))]
                      (cond-> {:db (assoc db :parlor parlor)}
                        now (assoc :fx [[:dispatch now]])))))
 

@@ -30,7 +30,8 @@
    other: (fn [page]) -> questions, page {:name :page :path-params :query};
    (fn [_] []) for a page that needs none.
    :actions-question: the question whose answer says what the person may
-   do, for :parlor/can-i?; nil when the app asks none.
+   do, for :parlor/can-i?: the message of doorman's make-my-actions-handler,
+   [:doorman/my-actions {}] in house; nil when the app asks none.
    :on-answer-failed: an event, given the question and the failed answer,
    for every answer that failed; nil for none.
    :on-move: an event, given {:from page :to page}, after every move;
@@ -45,9 +46,11 @@
    [:on-move [:maybe event-shape]]])
 
 (def actions-answer-shape
-  "The answer :parlor/can-i? reads, the server's: every scope the person
-   is in with the actions they may do there; a scope of nil kind and id
-   gives its actions in every scope."
+  "The answer :parlor/can-i? reads, the server's (doorman's
+   my-actions-answer-shape, the same): every scope the person is in with
+   the actions they may do there; a scope of nil kind and id gives its
+   actions in every scope (the open ones: :anyone, and :signed-in and
+   [:me …] for someone signed in)."
   [:vector [:map {:closed true}
             [:scope-kind [:maybe :keyword]]
             [:scope-id [:maybe :uuid]]

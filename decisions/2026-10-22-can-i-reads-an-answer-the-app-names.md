@@ -1,5 +1,7 @@
 # "Can I?" reads an answer the app names
 
+> **Changed in part** by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md) (2026-10-23, v0.3.0): doorman's `make-my-actions-handler` answers it, open actions included; house names it `:doorman/my-actions`.
+
 > Carries over Groundwork v0.5.0's `::store/can?`, which read the answer to `:groundwork/grants`.
 
 **Decision:** `@(rf/subscribe [:parlor/can-i? action scope])` says whether the person may do `action` in `scope`, `[kind id]` (doorman's scopes, `[:shop id]`); given a list of scopes, whether in every one (an empty list is no). It reads the answer to the start's `:actions-question`, a question the owner `:parlor/start` holds, shaped `actions-answer-shape`:

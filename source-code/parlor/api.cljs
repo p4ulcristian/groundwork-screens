@@ -9,7 +9,7 @@
                                        :send-message!      send-message!    ; the function the store asks through
                                        :pages              pages            ; the server's, from the page
                                        :questions-of-pages {:orders/page (fn [{:keys [path-params]}] […])}  ; each page's
-                                       :actions-question   [:people/actions {}]   ; or nil
+                                       :actions-question   [:doorman/my-actions {}]   ; doorman's, or nil
                                        :on-answer-failed   [:app/answer-failed]   ; or nil
                                        :on-move            nil}])                 ; or an event
      (parlor/mount-root! \"app\" root)

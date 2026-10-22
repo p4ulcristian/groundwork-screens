@@ -10,10 +10,10 @@
   reagent/reagent                {:mvn/version "2.0.1"}
   ;; the question store parlor keeps its answers from, and the changes a
   ;; write's answer says it touched
-  io.github.p4ulcristian/doorbell {:git/tag "v0.3.0" :git/sha "1c28ac4"}
+  io.github.p4ulcristian/doorbell {:git/tag "v0.4.0" :git/sha "0236a89"}
   ;; the address bar followed into re-frame, and moves to a page
   ;; (it brings wire, which the app's send-message! carries)
-  io.github.p4ulcristian/mailroom {:git/tag "v0.3.0" :git/sha "81ef0ab"}
+  io.github.p4ulcristian/mailroom {:git/tag "v0.4.0" :git/sha "9333bc7"}
   ;; the start's settings checked by their shapes
   metosin/malli                  {:mvn/version "0.20.3"}}
 
