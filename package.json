@@ -1,0 +1,15 @@
+{
+  "name": "parlor",
+  "private": true,
+  "description": "parlor's ClojureScript test build; react and react-dom for Reagent",
+  "scripts": {
+    "test": "shadow-cljs compile test"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "shadow-cljs": "3.5.7"
+  }
+}

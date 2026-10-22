@@ -1,0 +1,23 @@
+;; parlor: the browser's screens over doorbell's question store, in re-frame,
+;; drawn with Reagent. Browser only: source-code/parlor/ holds .cljs files.
+{:paths ["source-code"]
+
+ :deps
+ {;; the app's state and its events and subscriptions
+  re-frame/re-frame              {:mvn/version "1.4.7"}
+  ;; the root screen drawn into the page, with React (react and react-dom
+  ;; come from the app's package.json)
+  reagent/reagent                {:mvn/version "2.0.1"}
+  ;; the question store parlor keeps its answers from, and the changes a
+  ;; write's answer says it touched
+  io.github.p4ulcristian/doorbell {:git/tag "v0.3.0" :git/sha "1c28ac4"}
+  ;; the address bar followed into re-frame, and moves to a page
+  ;; (it brings wire, which the app's send-message! carries)
+  io.github.p4ulcristian/mailroom {:git/tag "v0.3.0" :git/sha "81ef0ab"}
+  ;; the start's settings checked by their shapes
+  metosin/malli                  {:mvn/version "0.20.3"}}
+
+ :aliases
+ {;; the tests, through shadow-cljs:  npm install && npx shadow-cljs compile test
+  :cljs {:extra-paths ["test-code"]
+         :extra-deps  {thheller/shadow-cljs {:mvn/version "3.5.7"}}}}}
