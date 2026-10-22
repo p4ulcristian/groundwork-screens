@@ -136,14 +136,14 @@
                                                                      true  (assoc-in [:parlor :waiting-scroll]
                                                                                      (when (is-module-loading? db module-name) scroll)))
                                                                    :parlor/page
-                                                                   (if page (vec ((get questions-of-pages (:name page)) page)) []))]
-                     (let [[parlor fetch-fx] (texts/fetch-what-is-missing (:parlor (:db owned)))
-                           owned             (assoc-in owned [:db :parlor] (texts/show-texts-in-wanted-language parlor))]
+                                                                   (if page (vec ((get questions-of-pages (:name page)) page)) []))
+                         [parlor fetch-fx] (texts/fetch-what-is-missing (:parlor (:db owned)))
+                         owned             (assoc-in owned [:db :parlor] (texts/show-texts-in-wanted-language parlor))]
                      (assoc owned :fx (cond-> (into fx fetch-fx)
-                                        load?                                         (conj [:parlor/-load-module {:load-module! load-module!
-                                                                                                                   :module-name  module-name}])
-                                        (not (is-module-loading? db module-name))     (conj [:parlor/-scroll scroll])
-                                        on-move                                       (conj [:dispatch (conj on-move {:from from :to page})])))))))
+                                        load?                                     (conj [:parlor/-load-module {:load-module! load-module!
+                                                                                                               :module-name  module-name}])
+                                        (not (is-module-loading? db module-name)) (conj [:parlor/-scroll scroll])
+                                        on-move                                   (conj [:dispatch (conj on-move {:from from :to page})]))))))
 
 (defn- scroll-if-the-page-waits
   "The scroll a page whose module just loaded waited for."
