@@ -1,3 +1,5 @@
+> **Changed in part** by ["Can I?" checks the answer by the shape it is handed](2026-10-23-can-i-checks-the-answer-by-the-shape-it-is-handed.md) (2026-10-23, v0.6.0): parlor has no `actions-answer-shape`; the start takes doorman's as `:actions-answer-shape`, and `:wire`.
+
 # parlor uses its libraries' own functions; once-answered waits for an answer on its way; "can I?" reads doorman's message
 
 > Changes in part [An answer has four statuses](2026-10-22-an-answer-has-four-statuses.md), [Owners hold questions](2026-10-22-owners-hold-questions.md), [A write's answer asks again what its notes name](2026-10-22-a-write-s-answer-asks-again-what-its-notes-name.md) and ["Can I?" reads an answer the app names](2026-10-22-can-i-reads-an-answer-the-app-names.md). On doorbell v0.4.0 and mailroom v0.4.0. Since v0.3.0.

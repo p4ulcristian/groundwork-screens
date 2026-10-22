@@ -39,6 +39,11 @@
    :actions-question: the question whose answer says what the person may
    do, for :parlor/can-i?: the message of doorman's make-my-actions-handler,
    [:doorman/my-actions {}] in house; nil when the app asks none.
+   :actions-answer-shape: the shape that question's answer fits (doorman's
+   my-actions-answer-shape), which \"can I?\" checks it by; nil when
+   :actions-question is nil.
+   :wire: the app's wire (wire.api's make-wire-from-settings), which the
+   answer is checked by: in the browser an id is its text.
    :on-answer-failed: an event, given the question and the failed answer,
    for every answer that failed; nil for none.
    :on-move: an event, given {:from page :to page}, after every move;
@@ -66,6 +71,8 @@
    [:pages map?]
    [:questions-of-pages [:map-of :qualified-keyword fn?]]
    [:actions-question [:maybe question-shape]]
+   [:actions-answer-shape :any]
+   [:wire [some? {:error/message "should be the app's wire, made by wire.api/make-wire-from-settings"}]]
    [:on-answer-failed [:maybe event-shape]]
    [:on-move [:maybe event-shape]]
    [:query-shapes-of-pages [:map-of :qualified-keyword :any]]
@@ -74,17 +81,6 @@
                         [:language-of-page :string]]]]
    [:load-module! [:maybe fn?]]
    [:placeholder [:maybe fn?]]])
-
-(def actions-answer-shape
-  "The answer :parlor/can-i? reads, the server's (doorman's
-   my-actions-answer-shape, the same): every scope the person is in with
-   the actions they may do there; a scope of nil kind and id gives its
-   actions in every scope (the open ones: :anyone, and :signed-in and
-   [:me …] for someone signed in)."
-  [:vector [:map {:closed true}
-            [:scope-kind [:maybe :keyword]]
-            [:scope-id [:maybe :uuid]]
-            [:actions [:vector :keyword]]]])
 
 (defn- find-undeclared-pages-in
   "Every page :pages has and the setting k doesn't, and the other way:
@@ -100,6 +96,14 @@
 (defn- find-undeclared-pages [settings]
   (merge (find-undeclared-pages-in settings :questions-of-pages "questions")
          (find-undeclared-pages-in settings :query-shapes-of-pages "query shape")))
+
+(defn- find-actions-problems
+  "An :actions-question needs its answer's shape, and none needs none."
+  [{:keys [actions-question actions-answer-shape]}]
+  (when (not= (nil? actions-question) (nil? actions-answer-shape))
+    {:actions-answer-shape [(if actions-question
+                              "the :actions-question's answer needs its shape"
+                              "no :actions-question: nil")]}))
 
 (defn- find-module-problems
   "A page that names a module needs :load-module! and :placeholder."
@@ -118,7 +122,7 @@
   [settings]
   (let [errors (if-let [explanation (malli/explain start-settings-shape settings)]
                  (malli-error/humanize explanation)
-                 (merge (find-undeclared-pages settings) (find-module-problems settings)))]
+                 (merge (find-undeclared-pages settings) (find-actions-problems settings) (find-module-problems settings)))]
     (when errors
       (throw (ex-info (str "The settings have problems: " (pr-str errors))
                       {:type :parlor/bad-settings :errors errors}))))

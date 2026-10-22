@@ -30,7 +30,7 @@ the app (house) makes them and hands them to the start.
 | `[:parlor/ask-again question]` | a held question asked again now |
 | `[:parlor/once-answered question event]` | `event` gets the data once: now, or, while a fresher answer is on its way (doorbell's `is-question-being-asked?`) or none is there, with the next good answer |
 | `[:parlor/send [name params] event]` | a write, through `:send-write!` with a one-time key made for this send, sent again with the same key while it gets no answer (`:retry-writes`); `event` gets `{:status :ready :data …}` or `{:status :error :error …}`; a good answer asks again what its notes name |
-| `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer (`actions-answer-shape`, doorman's `make-my-actions-handler`'s); `scope` is `[kind id]` or a list of them |
+| `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer, checked by `:actions-answer-shape` (doorman's `my-actions-answer-shape`) through the app's `:wire`; `scope` is `[kind id]` or a list of them |
 | `[:parlor/page]` (sub) `[:parlor/go-to name path-params query]` | the page, `{:name :page :path-params :query :query-errors :fragment :language}` or nil; a move, keeping the language. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them; a change of only the query keeps what it still asks, and the scroll. Each move scrolls once drawn: top, the `#fragment`, or where Back left it |
 | `[:parlor/hold message]` `[:parlor/let-go]` | unsaved changes: while held, leaving the page asks the person the message (the browser's confirm), closing the tab the browser's own question |
 | `show-page` | `[parlor/show-page draw-page]`: the page, or the `:placeholder` while the page's `:module` loads (`:load-module!`, on the way in) |
@@ -54,6 +54,8 @@ and send throw `:parlor/asked-before-start`, naming the messages.
                                                                       [[:orders/of-shop {:shop/id (parse-uuid (:shop-id path-params))}]])
                                                        :about/page  (fn [_] [])}
                                   :actions-question   [:doorman/my-actions {}]   ; doorman's handler; nil: every "can I?" is no
+                                  :actions-answer-shape doorman/my-actions-answer-shape   ; nil with no question
+                                  :wire               wire               ; the app's
                                   :on-answer-failed   [:shop/answer-failed]  ; nil for none
                                   :on-move            nil
                                   :query-shapes-of-pages {:orders/page nil :about/page nil}   ; a malli map reads the query into types

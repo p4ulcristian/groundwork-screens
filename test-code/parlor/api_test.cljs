@@ -11,7 +11,15 @@
    [parlor.can-i :as can-i]
    [parlor.pages :as pages]
    [re-frame.core :as rf]
-   [re-frame.db :as rf-db]))
+   [re-frame.db :as rf-db]
+   [wire.api :as wire]))
+
+(def ^:private test-wire
+  (wire/make-wire-from-settings {:most-shapes-kept 100 :most-keys-kept 1000 :exact-decimals nil}))
+
+(def ^:private actions-shape
+  "doorman's my-actions-answer-shape, as the app hands it in."
+  [:vector [:map {:closed true} [:scope-kind [:maybe :keyword]] [:scope-id [:maybe :uuid]] [:actions [:vector :keyword]]]])
 
 (def ^:private store-settings {:gather-changes-ms 10 :keep-unwatched-answers-ms 1000})
 
@@ -78,6 +86,8 @@
                                                :pages             {}
                                                :questions-of-pages {}
                                                :actions-question  nil
+                                               :actions-answer-shape nil
+                                               :wire test-wire
                                                :on-answer-failed  nil
                                                :on-move           nil
                                                :query-shapes-of-pages {}
@@ -94,8 +104,8 @@
   (reset! rf-db/app-db {})
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:pages {} :colour "red"}]))]
     (is (= :parlor/bad-settings type))
-    (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :on-answer-failed :on-move
-             :query-shapes-of-pages :languages :load-module! :placeholder :colour}
+    (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :actions-answer-shape :wire
+             :on-answer-failed :on-move :query-shapes-of-pages :languages :load-module! :placeholder :colour}
            (set (keys errors)))
         "every missing key and the unknown one, at once"))
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
@@ -104,6 +114,8 @@
                                                                               :pages              {:orders/page {:address "/orders" :title nil}}
                                                                               :questions-of-pages {:shops/page (fn [_] [])}
                                                                               :actions-question   nil
+                                                                              :actions-answer-shape nil
+                                                                              :wire test-wire
                                                                               :on-answer-failed   nil
                                                                               :on-move            nil
                                                                               :query-shapes-of-pages {:orders/page nil}
@@ -119,6 +131,8 @@
                                                                          :pages              {:orders/page {:address "/orders" :title nil :module "admin"}}
                                                                          :questions-of-pages {:orders/page (fn [_] [])}
                                                                          :actions-question   nil
+                                                                         :actions-answer-shape nil
+                                                                         :wire test-wire
                                                                          :on-answer-failed   nil
                                                                          :on-move            nil
                                                                          :query-shapes-of-pages {}
@@ -344,10 +358,10 @@
          (let [shop  #uuid "5b000000-0000-4000-8000-000000000001"
                other #uuid "5b000000-0000-4000-8000-000000000002"
                {:keys [send-message!]}
-               (make-stand-in-server {} (fn [_ _] [{:scope-kind :shop :scope-id shop :actions [:orders/see :orders/edit]}
-                                                   {:scope-kind :shop :scope-id other :actions [:orders/see]}
+               (make-stand-in-server {} (fn [_ _] [{:scope-kind :shop :scope-id (str shop) :actions [:orders/see :orders/edit]}   ; ids are text in the browser
+                                                   {:scope-kind :shop :scope-id (str other) :actions [:orders/see]}
                                                    {:scope-kind nil :scope-id nil :actions [:profile/edit]}]))
-               _ (start! send-message! {:actions-question [:people/actions {}]})]
+               _ (start! send-message! {:actions-question [:people/actions {}] :actions-answer-shape actions-shape})]
            (is (false? (sub [:parlor/can-i? :orders/see [:shop shop]])) "no until the answer is there")
            (after-ms 20
                      (fn []
@@ -362,6 +376,8 @@
                        (rf/dispatch-sync [:parlor/release :orders-page])
                        (is (true? (sub [:parlor/can-i? :orders/see [:shop shop]])) "the start's owner keeps it")
                        (is (false? (can-i/can-i? nil :orders/see [:shop shop])) "no answer, no")
+                       (swap! rf-db/app-db assoc-in [:parlor :answers [:people/actions {}] :data] [{:scope-kind :shop :scope-id shop}])
+                       (is (false? (sub [:parlor/can-i? :orders/see [:shop shop]])) "an answer that doesn't fit its shape: no")
                        (done))))))
 
 (deftest pages-are-re-frame-data
@@ -395,6 +411,8 @@
                                                                                     [[:orders/one {:order/id (:order-id path-params)}]
                                                                                      [:shops/all {}]])}
                                                :actions-question  nil
+                                               :actions-answer-shape nil
+                                               :wire test-wire
                                                :on-answer-failed  nil
                                                :on-move           [:test/heard :moved]
                                                :query-shapes-of-pages {:orders/page [:map [:tab :keyword]] :orders/order nil}
@@ -443,6 +461,8 @@
                                                :pages                 pages
                                                :questions-of-pages    questions-of-pages
                                                :actions-question      nil
+                                               :actions-answer-shape nil
+                                               :wire test-wire
                                                :on-answer-failed      nil
                                                :on-move               nil
                                                :query-shapes-of-pages (update-vals pages (constantly nil))

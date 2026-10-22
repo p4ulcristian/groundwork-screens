@@ -11,6 +11,8 @@
                                        :pages              pages            ; the server's, from the page
                                        :questions-of-pages {:orders/page (fn [{:keys [path-params]}] […])}  ; each page's
                                        :actions-question   [:doorman/my-actions {}]   ; doorman's, or nil
+                                       :actions-answer-shape doorman/my-actions-answer-shape   ; its answer's, or nil
+                                       :wire               wire                   ; the app's, which the answer is checked by
                                        :on-answer-failed   [:app/answer-failed]   ; or nil
                                        :on-move            nil                    ; or an event
                                        :query-shapes-of-pages {:orders/page [:map [:tab {:optional true} :keyword]]}  ; nil: text
@@ -53,13 +55,6 @@
    :retry-writes :pages :questions-of-pages :actions-question :on-answer-failed :on-move
    (see parlor.settings)."
   settings/start-settings-shape)
-
-(def actions-answer-shape
-  "The answer :parlor/can-i? reads, for the :answer-shape of the server's
-   message that answers the start's :actions-question:
-   [{:scope-kind :shop :scope-id #uuid \"…\" :actions [:orders/see …]} …];
-   nil kind and id: in every scope."
-  settings/actions-answer-shape)
 
 (defn show-page
   "A component: [draw-page page], the page shown (nil for an address no

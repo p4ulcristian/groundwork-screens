@@ -1,3 +1,5 @@
+> **Changed in part** by ["Can I?" checks the answer by the shape it is handed](2026-10-23-can-i-checks-the-answer-by-the-shape-it-is-handed.md) (2026-10-23, v0.6.0): parlor has no `actions-answer-shape`; the start takes doorman's as `:actions-answer-shape`, and `:wire`.
+
 # "Can I?" reads an answer the app names
 
 > **Changed in part** by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md) (2026-10-23, v0.3.0): doorman's `make-my-actions-handler` answers it, open actions included; house names it `:doorman/my-actions`.
