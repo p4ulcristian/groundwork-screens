@@ -5,6 +5,7 @@
    other problem at once (:parlor/bad-settings). They are values the app
    hands in, not data crossing an edge, so malli checks them itself."
   (:require
+   [dictionary.api :as dictionary]
    [malli.core :as malli]
    [malli.error :as malli-error]))
 
@@ -41,7 +42,21 @@
    :on-answer-failed: an event, given the question and the failed answer,
    for every answer that failed; nil for none.
    :on-move: an event, given {:from page :to page}, after every move;
-   nil for none."
+   nil for none.
+   :query-shapes-of-pages: every page's query shape, by page name, one for
+   each of :pages and no other: a malli map the query's text values are
+   read by (mailroom's), or nil to keep them text.
+   :languages: nil without languages, or {:dictionary settings
+   :language-of-page \"en\"}: dictionary's settings (the server's, from
+   the page) and the language the page came in; an address's prefix says
+   its language, and a move keeps it.
+   :load-module!: (fn [module-name]) -> a promise, settled once a module
+   loaded on demand has its stylesheets and code in (showroom's
+   load-module!), for a page whose :module isn't loaded; nil when no page
+   names one.
+   :placeholder: a component, (fn [page status]), drawn by show-page in
+   place of the page while its module loads (:loading) or after it failed
+   (:failed); nil when no page names a module."
   [:map {:closed true}
    [:store [:fn {:error/message "should be doorbell's question store, made by doorbell.api/make-question-store"} map?]]
    [:send-write! fn?]
@@ -52,7 +67,13 @@
    [:questions-of-pages [:map-of :qualified-keyword fn?]]
    [:actions-question [:maybe question-shape]]
    [:on-answer-failed [:maybe event-shape]]
-   [:on-move [:maybe event-shape]]])
+   [:on-move [:maybe event-shape]]
+   [:query-shapes-of-pages [:map-of :qualified-keyword :any]]
+   [:languages [:maybe [:map {:closed true}
+                        [:dictionary dictionary/settings-shape]
+                        [:language-of-page :string]]]]
+   [:load-module! [:maybe fn?]]
+   [:placeholder [:maybe fn?]]])
 
 (def actions-answer-shape
   "The answer :parlor/can-i? reads, the server's (doorman's
@@ -65,25 +86,39 @@
             [:scope-id [:maybe :uuid]]
             [:actions [:vector :keyword]]]])
 
-(defn- find-undeclared-pages
-  "Every page :pages has and :questions-of-pages doesn't, and the other
-   way: {:questions-of-pages [\"…\"]}, or nil."
-  [{:keys [pages questions-of-pages]}]
-  (let [missing (remove (set (keys questions-of-pages)) (keys pages))
-        extra   (remove (set (keys pages)) (keys questions-of-pages))]
+(defn- find-undeclared-pages-in
+  "Every page :pages has and the setting k doesn't, and the other way:
+   {k [\"…\"]}, or nil."
+  [{:keys [pages] :as settings} k what]
+  (let [declared (get settings k)
+        missing  (remove (set (keys declared)) (keys pages))
+        extra    (remove (set (keys pages)) (keys declared))]
     (when (or (seq missing) (seq extra))
-      {:questions-of-pages (vec (concat (map #(str "no questions declared for the page " %) missing)
-                                        (map #(str "no page " % " in :pages") extra)))})))
+      {k (vec (concat (map #(str "no " what " declared for the page " %) missing)
+                      (map #(str "no page " % " in :pages") extra)))})))
+
+(defn- find-undeclared-pages [settings]
+  (merge (find-undeclared-pages-in settings :questions-of-pages "questions")
+         (find-undeclared-pages-in settings :query-shapes-of-pages "query shape")))
+
+(defn- find-module-problems
+  "A page that names a module needs :load-module! and :placeholder."
+  [{:keys [pages load-module! placeholder]}]
+  (when (some :module (vals pages))
+    (cond-> nil
+      (nil? load-module!) (assoc :load-module! ["a page names a module: say how one loads"])
+      (nil? placeholder)  (assoc :placeholder ["a page names a module: say what shows while it loads"]))))
 
 (defn check-start-settings
   "Returns the settings; throws {:type :parlor/bad-settings :errors …}
-   with every problem at once when they don't fit, or when a page in
-   :pages declares no questions or questions are declared for a page
-   :pages doesn't have."
+   with every problem at once when they don't fit, when a page in :pages
+   declares no questions or query shape or one is declared for a page
+   :pages doesn't have, or when a page names a module and :load-module!
+   or :placeholder is nil."
   [settings]
   (let [errors (if-let [explanation (malli/explain start-settings-shape settings)]
                  (malli-error/humanize explanation)
-                 (find-undeclared-pages settings))]
+                 (merge (find-undeclared-pages settings) (find-module-problems settings)))]
     (when errors
       (throw (ex-info (str "The settings have problems: " (pr-str errors))
                       {:type :parlor/bad-settings :errors errors}))))

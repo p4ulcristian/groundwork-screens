@@ -22,4 +22,4 @@
                       :fx (cond-> []
                             before         (conj [:parlor/-unwatch-all before])
                             (seq to-watch) (conj [:parlor/-watch {:started started :questions to-watch}])
-                            true           (conj [:parlor/-follow-address (:pages started)]))})))
+                            true           (conj [:parlor/-follow-address (select-keys started [:pages :query-shapes-of-pages :languages])]))})))

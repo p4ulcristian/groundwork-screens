@@ -1,3 +1,5 @@
+> **Changed in part** by [A page has its query and language, scrolls once drawn, holds unsaved changes, and loads its module on the way in](2026-10-23-a-page-has-its-query-and-language-scrolls-once-drawn-holds-unsaved-changes-and-loads-its-module.md) (2026-10-23, v0.5.0): languages, scrolling, the unsaved guard, loading on demand and query filters are in.
+
 > **Changed in part** by [A write carries a one-time key, kept across its retries](2026-10-23-a-write-carries-a-one-time-key-kept-across-its-retries.md) (2026-10-23, v0.4.0): a write's one-time key is back; the server keeps it (house).
 
 # What parlor leaves out of Groundwork v0.5.0

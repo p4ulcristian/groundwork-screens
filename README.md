@@ -14,7 +14,7 @@ person may do, and puts the page the address bar leads to
 io.github.p4ulcristian/parlor {:git/tag "v0.4.0" :git/sha "a3d77d8"}
 ```
 
-Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, mailroom and malli; react
+Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, mailroom, dictionary and malli; react
 and react-dom come from the app's `package.json`. Browser only, one public
 namespace, `parlor.api`, which registers the events and subscriptions
 below when it loads. parlor makes no store, no send function and no wire:
@@ -31,7 +31,9 @@ the app (house) makes them and hands them to the start.
 | `[:parlor/once-answered question event]` | `event` gets the data once: now, or, while a fresher answer is on its way (doorbell's `is-question-being-asked?`) or none is there, with the next good answer |
 | `[:parlor/send [name params] event]` | a write, through `:send-write!` with a one-time key made for this send, sent again with the same key while it gets no answer (`:retry-writes`); `event` gets `{:status :ready :data …}` or `{:status :error :error …}`; a good answer asks again what its notes name |
 | `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer (`actions-answer-shape`, doorman's `make-my-actions-handler`'s); `scope` is `[kind id]` or a list of them |
-| `[:parlor/page]` (sub) `[:parlor/go-to name path-params]` | the page, `{:name :page :path-params :query}` or nil; a move. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them |
+| `[:parlor/page]` (sub) `[:parlor/go-to name path-params query]` | the page, `{:name :page :path-params :query :query-errors :fragment :language}` or nil; a move, keeping the language. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them; a change of only the query keeps what it still asks, and the scroll. Each move scrolls once drawn: top, the `#fragment`, or where Back left it |
+| `[:parlor/hold message]` `[:parlor/let-go]` | unsaved changes: while held, leaving the page asks the person the message (the browser's confirm), closing the tab the browser's own question |
+| `show-page` | `[parlor/show-page draw-page]`: the page, or the `:placeholder` while the page's `:module` loads (`:load-module!`, on the way in) |
 | `mount-root!` | `[root]` drawn into the element with this id; again after a save |
 
 Nothing asks before `:parlor/start`: watch, own, ask-again, once-answered
@@ -53,7 +55,11 @@ and send throw `:parlor/asked-before-start`, naming the messages.
                                                        :about/page  (fn [_] [])}
                                   :actions-question   [:doorman/my-actions {}]   ; doorman's handler; nil: every "can I?" is no
                                   :on-answer-failed   [:shop/answer-failed]  ; nil for none
-                                  :on-move            nil}])
+                                  :on-move            nil
+                                  :query-shapes-of-pages {:orders/page nil :about/page nil}   ; a malli map reads the query into types
+                                  :languages          nil                ; or {:dictionary settings :language-of-page "en"}
+                                  :load-module!       nil                ; or showroom's, when a page names a :module
+                                  :placeholder        nil}])             ; or (fn [page status]) while it loads
 
 (defn orders-page [shop-id]
   (let [{:keys [status data error]} @(rf/subscribe [:parlor/answer [:orders/of-shop {:shop/id shop-id}]])
@@ -71,11 +77,14 @@ and send throw `:parlor/asked-before-start`, naming the messages.
                                                      [:shop/order-moved]])}
                    "To curing"])]))])))
 
+(defn draw-page [{:keys [name path-params]}]
+  (case name
+    :orders/page [orders-page (parse-uuid (:shop-id path-params))]
+    [:p "No such page."]))
+
 (defn root []
-  (let [{:keys [name path-params]} @(rf/subscribe [:parlor/page])]
-    (case name
-      :orders/page [orders-page (parse-uuid (:shop-id path-params))]
-      [:p "No such page."])))
+  [:main [:nav [:a {:href "/about"} "About"]]   ; a plain link moves in the app
+   [parlor/show-page draw-page]])
 
 (parlor/mount-root! "app" root)
 ```

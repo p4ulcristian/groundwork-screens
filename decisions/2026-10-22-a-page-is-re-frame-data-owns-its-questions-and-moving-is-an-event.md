@@ -1,3 +1,5 @@
+> **Changed in part** by [A page has its query and language, scrolls once drawn, holds unsaved changes, and loads its module on the way in](2026-10-23-a-page-has-its-query-and-language-scrolls-once-drawn-holds-unsaved-changes-and-loads-its-module.md) (2026-10-23, v0.5.0): `:parlor/go-to` takes a query; a page has its query, language and `#fragment`.
+
 # A page is re-frame data, owns the questions it declares, and moving is an event
 
 > The user's decision, 2026-10-22. Changes in part [The page is re-frame data, from mailroom's routing](2026-10-22-the-page-is-re-frame-data.md), [Owners hold questions; a page owns its questions](2026-10-22-owners-hold-questions.md), [Every start setting is required](2026-10-22-every-start-setting-is-required.md) and [Nothing asks before the start](2026-10-22-nothing-asks-before-the-start.md): `:questions-of-page`, one function, is now `:questions-of-pages`, one declaration per page; `:parlor/go-to-page` is `:parlor/go-to`. Since v0.2.0.

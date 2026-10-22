@@ -1,3 +1,5 @@
+> **Changed in part** by [A page has its query and language, scrolls once drawn, holds unsaved changes, and loads its module on the way in](2026-10-23-a-page-has-its-query-and-language-scrolls-once-drawn-holds-unsaved-changes-and-loads-its-module.md) (2026-10-23, v0.5.0): `:query-shapes-of-pages`, `:languages`, `:load-module!` and `:placeholder` are new.
+
 > **Changed in part** by [A write carries a one-time key, kept across its retries](2026-10-23-a-write-carries-a-one-time-key-kept-across-its-retries.md) (2026-10-23, v0.4.0): `:send-message!` is replaced by `:send-write!`; `:retry-writes` is new.
 
 # Every start setting is required; parlor takes no log

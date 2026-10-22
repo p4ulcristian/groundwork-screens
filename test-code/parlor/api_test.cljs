@@ -9,6 +9,7 @@
    [mailroom.api :as mailroom]
    [parlor.api :as parlor]
    [parlor.can-i :as can-i]
+   [parlor.pages :as pages]
    [re-frame.core :as rf]
    [re-frame.db :as rf-db]))
 
@@ -25,16 +26,16 @@
         offline   (atom #{})
         once-keys (atom [])
         send!     (fn [message]
-                      (let [[message-name] (first message)
-                            n              (get (swap! asked update message-name (fnil inc 0)) message-name)]
-                        (if (contains? @offline message-name)
-                          (js/Promise.reject (js/Error. "offline"))
-                          (js/Promise.resolve
-                           (cond-> {message-name (if (contains? @failing message-name)
-                                                   {:error "Not found."}
-                                                   (answer-of message-name n))}
-                             (contains? tables-by-name message-name)
-                             (assoc :mailroom/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
+                    (let [[message-name] (first message)
+                          n              (get (swap! asked update message-name (fnil inc 0)) message-name)]
+                      (if (contains? @offline message-name)
+                        (js/Promise.reject (js/Error. "offline"))
+                        (js/Promise.resolve
+                         (cond-> {message-name (if (contains? @failing message-name)
+                                                 {:error "Not found."}
+                                                 (answer-of message-name n))}
+                           (contains? tables-by-name message-name)
+                           (assoc :mailroom/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
     {:asked         asked
      :failing       failing
      :offline       offline
@@ -78,7 +79,11 @@
                                                :questions-of-pages {}
                                                :actions-question  nil
                                                :on-answer-failed  nil
-                                               :on-move           nil}
+                                               :on-move           nil
+                                               :query-shapes-of-pages {}
+                                               :languages         nil
+                                               :load-module!      nil
+                                               :placeholder       nil}
                                               more-settings)]))
     store))
 
@@ -89,7 +94,8 @@
   (reset! rf-db/app-db {})
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:pages {} :colour "red"}]))]
     (is (= :parlor/bad-settings type))
-    (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :on-answer-failed :on-move :colour}
+    (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :on-answer-failed :on-move
+             :query-shapes-of-pages :languages :load-module! :placeholder :colour}
            (set (keys errors)))
         "every missing key and the unknown one, at once"))
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
@@ -99,10 +105,28 @@
                                                                               :questions-of-pages {:shops/page (fn [_] [])}
                                                                               :actions-question   nil
                                                                               :on-answer-failed   nil
-                                                                              :on-move            nil}]))]
+                                                                              :on-move            nil
+                                                                              :query-shapes-of-pages {:orders/page nil}
+                                                                              :languages          nil
+                                                                              :load-module!       nil
+                                                                              :placeholder        nil}]))]
     (is (= :parlor/bad-settings type))
     (is (= {:questions-of-pages ["no questions declared for the page :orders/page" "no page :shops/page in :pages"]} errors)
-        "every page declares its questions, and only pages there are")))
+        "every page declares its questions, and only pages there are"))
+  (let [{:keys [errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
+                                                                         :send-write!        identity
+                                                                         :retry-writes       {:times 0 :wait-ms 0}
+                                                                         :pages              {:orders/page {:address "/orders" :title nil :module "admin"}}
+                                                                         :questions-of-pages {:orders/page (fn [_] [])}
+                                                                         :actions-question   nil
+                                                                         :on-answer-failed   nil
+                                                                         :on-move            nil
+                                                                         :query-shapes-of-pages {}
+                                                                         :languages          nil
+                                                                         :load-module!       nil
+                                                                         :placeholder        nil}]))]
+    (is (= #{:query-shapes-of-pages :load-module! :placeholder} (set (keys errors)))
+        "every page's query shape, and how a page's module loads and what shows meanwhile")))
 
 (deftest nothing-asks-before-the-start
   (reset! rf-db/app-db {})
@@ -344,16 +368,23 @@
   (async done
          (let [{:keys [asked send-message!]} (make-stand-in-server {} (fn [_ n] n))
                store     (doorbell/make-question-store send-message! store-settings)
-               on-page   (atom nil)
+               on-page*  (atom nil)
+               scrolled  (atom [])
                orders    {:name :orders/page :page {:address "/orders" :title "Orders" :name :orders/page}
                           :path-params {} :query {}}
                order     {:name :orders/order :page {:address "/orders/:order-id" :title "Order" :name :orders/order}
                           :path-params {:order-id "7"} :query {}}]
            (reset! rf-db/app-db {})
            (reset! heard [])
-           (with-redefs [mailroom/start-following-address! (fn [pages f]
+           (with-redefs [mailroom/start-following-address! (fn [pages {:keys [on-page query-shapes-of-pages may-leave? languages]}]
                                                              (is (= #{:orders/page :orders/order} (set (keys pages))))
-                                                             (reset! on-page f))]
+                                                             (is (= {:orders/page [:map [:tab :keyword]] :orders/order nil} query-shapes-of-pages))
+                                                             (is (fn? may-leave?))
+                                                             (is (= "/de/orders" ((:make-path-in-language languages) "/orders" "de"))
+                                                                 "dictionary's rules, from its settings")
+                                                             (is (= "en" (:language-of-page languages)))
+                                                             (reset! on-page* #(on-page % :keep)))
+                         mailroom/scroll-as-told!          (fn [scroll] (swap! scrolled conj scroll))]
              (rf/dispatch-sync [:parlor/start {:store             store
                                                :send-write!       (fn [message _] (send-message! message))
                                                :retry-writes      {:times 0 :wait-ms 0}
@@ -365,19 +396,24 @@
                                                                                      [:shops/all {}]])}
                                                :actions-question  nil
                                                :on-answer-failed  nil
-                                               :on-move           [:test/heard :moved]}]))
-           (@on-page orders)
+                                               :on-move           [:test/heard :moved]
+                                               :query-shapes-of-pages {:orders/page [:map [:tab :keyword]] :orders/order nil}
+                                               :languages         {:dictionary       {:languages ["en" "de"] :default "en" :cookie-name nil}
+                                                                   :language-of-page "en"}
+                                               :load-module!      nil
+                                               :placeholder       nil}]))
+           (@on-page* orders)
            (after-ms 20
                      (fn []
                        (is (= orders (sub [:parlor/page])))
                        (is (= {:orders/all 1 :shops/all 1} @asked) "the page's questions, asked on arrival")
-                       (@on-page order)
+                       (@on-page* order)
                        (after-ms 20
                                  (fn []
                                    (is (= {:orders/all 1 :shops/all 1 :orders/one 1} @asked)
                                        "what the next page shares is kept, not asked again")
                                    (is (= {:status :loading} (sub [:parlor/answer [:orders/all {}]])) "the rest let go")
-                                   (@on-page nil)
+                                   (@on-page* nil)
                                    (after-ms 20
                                              (fn []
                                                (is (nil? (sub [:parlor/page])) "an address no page has")
@@ -388,6 +424,112 @@
                                                       @heard))
                                                (let [moved (atom nil)]
                                                  (with-redefs [mailroom/go-to-page! (fn [& args] (reset! moved (vec args)))]
-                                                   (rf/dispatch-sync [:parlor/go-to :orders/order {:order-id "8"}]))
-                                                 (is (= [:orders/order {:order-id "8"}] @moved)))
+                                                   (rf/dispatch-sync [:parlor/go-to :orders/order {:order-id "8"} {:tab :notes}]))
+                                                 (is (= [:orders/order {:order-id "8"} {:tab :notes}] @moved)))
                                                (done))))))))))
+
+(defn- start-following!
+  "A started parlor over these pages, following a stand-in address bar:
+   returns (fn [page scroll]), mailroom's on-page."
+  [send-message! pages questions-of-pages more-settings]
+  (reset! rf-db/app-db {})
+  (reset! heard [])
+  (let [on-page (atom nil)
+        store   (doorbell/make-question-store send-message! store-settings)]
+    (with-redefs [mailroom/start-following-address! (fn [_ options] (reset! on-page (:on-page options)))]
+      (rf/dispatch-sync [:parlor/start (merge {:store                 store
+                                               :send-write!           (fn [message _] (send-message! message))
+                                               :retry-writes          {:times 0 :wait-ms 0}
+                                               :pages                 pages
+                                               :questions-of-pages    questions-of-pages
+                                               :actions-question      nil
+                                               :on-answer-failed      nil
+                                               :on-move               nil
+                                               :query-shapes-of-pages (update-vals pages (constantly nil))
+                                               :languages             nil
+                                               :load-module!          nil
+                                               :placeholder           nil}
+                                              more-settings)]))
+    @on-page))
+
+(defn- arrive! [page scroll]
+  (rf/dispatch-sync [:parlor/-arrived page scroll]))
+
+(defn- catch-scrolls!
+  "Every scroll parlor makes, into an atom, until (stop)."
+  [scrolls]
+  (let [scroll-after-drawing! pages/scroll-after-drawing!]
+    (set! pages/scroll-after-drawing! #(swap! scrolls conj %))
+    #(set! pages/scroll-after-drawing! scroll-after-drawing!)))
+
+(deftest a-change-of-only-the-query-keeps-what-it-still-asks
+  (async done
+         (let [{:keys [asked send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               orders  {:orders/list {:address "/orders" :title nil}}
+               _       (start-following! send-message! orders
+                                         {:orders/list (fn [{:keys [query]}] [[:orders/all {}] [:orders/of-stage {:stage (:stage query)}]])}
+                                         {})
+               page    (fn [query] {:name :orders/list :page {:address "/orders" :title nil :name :orders/list}
+                                    :path-params {} :query query :query-errors nil :fragment nil :language nil})
+               scrolls (atom [])
+               stop    (catch-scrolls! scrolls)]
+           (arrive! (page {:stage :coating}) :top)
+           (after-ms 30
+                     (fn []
+                       (arrive! (page {:stage :curing}) :keep)
+                       (after-ms 40
+                                 (fn []
+                                   (is (= {:orders/all 1 :orders/of-stage 2} @asked)
+                                       "the page stays; what it still asks is kept, the new filter asked")
+                                   (is (= {:stage :curing} (:query (sub [:parlor/page]))))
+                                   (is (= [:top :keep] @scrolls) "scrolled as mailroom told")
+                                   (stop)
+                                   (done))))))))
+
+(deftest unsaved-changes-ask-before-leaving
+  (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+        answers (atom [])]
+    (start-following! send-message! {} {} {})
+    (is (true? (pages/may-leave?)) "nothing held: leave")
+    (rf/dispatch-sync [:parlor/hold "Leave without saving?"])
+    (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) false)]
+      (is (false? (pages/may-leave?)) "held: the person is asked, and says stay"))
+    (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) true)]
+      (is (true? (pages/may-leave?)) "says leave"))
+    (is (= ["Leave without saving?" "Leave without saving?"] @answers))
+    (with-redefs [pages/ask-person (fn [_] (throw (js/Error. "not asked")))]
+      (is (true? (pages/may-leave?)) "leaving let go: not asked again")
+      (rf/dispatch-sync [:parlor/hold "Leave?"])
+      (rf/dispatch-sync [:parlor/let-go])
+      (is (true? (pages/may-leave?)) "saved: let go"))))
+
+(deftest a-page-loads-its-module-on-the-way-in
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               loads    (atom [])
+               scrolls  (atom [])
+               stop     (catch-scrolls! scrolls)
+               admin    {:admin/page {:address "/admin" :title nil :module "admin"}}
+               _        (start-following! send-message! admin {:admin/page (fn [_] [])}
+                                          {:load-module! (fn [module-name]
+                                                           (swap! loads conj module-name)
+                                                           (js/Promise. (fn [resolve _] (js/setTimeout resolve 20))))
+                                           :placeholder  (fn [_ _] [:p "Loading…"])})
+               page     {:name :admin/page :page {:address "/admin" :title nil :module "admin" :name :admin/page}
+                         :path-params {} :query {} :query-errors nil :fragment nil :language nil}
+               draw     (fn [page] [:h1 (str (:name page))])]
+           (arrive! page :top)
+           (is (= ["admin"] @loads) "loaded on the way in")
+           (rf/clear-subscription-cache!)
+           (is (= [page :loading] (rest (pages/show-page draw))) "the placeholder meanwhile, with the page")
+           (is (= [] @scrolls) "the scroll waits for the page")
+           (after-ms 60
+                     (fn []
+                       (rf/clear-subscription-cache!)
+                       (is (= [draw page] (pages/show-page draw)) "then the page")
+                       (is (= [:top] @scrolls) "scrolled once the page could be drawn")
+                       (arrive! page :keep)
+                       (is (= ["admin"] @loads) "loaded once")
+                       (is (= [:top :keep] @scrolls) "and now at once")
+                       (stop)
+                       (done))))))

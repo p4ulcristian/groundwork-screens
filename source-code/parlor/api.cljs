@@ -12,7 +12,11 @@
                                        :questions-of-pages {:orders/page (fn [{:keys [path-params]}] […])}  ; each page's
                                        :actions-question   [:doorman/my-actions {}]   ; doorman's, or nil
                                        :on-answer-failed   [:app/answer-failed]   ; or nil
-                                       :on-move            nil}])                 ; or an event
+                                       :on-move            nil                    ; or an event
+                                       :query-shapes-of-pages {:orders/page [:map [:tab {:optional true} :keyword]]}  ; nil: text
+                                       :languages          nil                    ; or {:dictionary settings :language-of-page \"en\"}
+                                       :load-module!       nil                    ; or showroom's, for pages that name a :module
+                                       :placeholder        nil}])                 ; or (fn [page status]) while one loads
      (parlor/mount-root! \"app\" root)
 
      (rf/dispatch [:parlor/watch :order-panel [[:orders/one {:order/id id}]]])  ; adds
@@ -25,8 +29,11 @@
      (rf/dispatch [:parlor/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
      (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]])
      @(rf/subscribe [:parlor/can-i? :orders/edit [:shop shop-id]])
-     @(rf/subscribe [:parlor/page])   ;=> {:name :orders/page :page … :path-params … :query …} or nil
-     (rf/dispatch [:parlor/go-to :orders/order {:order-id id}])
+     @(rf/subscribe [:parlor/page])   ;=> {:name :orders/page :page … :path-params … :query … :language …} or nil
+     (rf/dispatch [:parlor/go-to :orders/order {:order-id id} {}])   ; a query, {} for none
+     (rf/dispatch [:parlor/hold \"Leave without saving?\"])         ; asked before leaving the page
+     (rf/dispatch [:parlor/let-go])
+     [parlor/show-page draw-page]     ; the page, or the placeholder while its module loads
 
    Nothing asks before :parlor/start: :parlor/watch, :parlor/own,
    :parlor/ask-again, :parlor/once-answered and :parlor/send throw
@@ -36,7 +43,7 @@
   (:require
    [parlor.answers]
    [parlor.can-i]
-   [parlor.pages]
+   [parlor.pages :as pages]
    [parlor.screen :as screen]
    [parlor.settings :as settings]
    [parlor.start]))
@@ -53,6 +60,13 @@
    [{:scope-kind :shop :scope-id #uuid \"…\" :actions [:orders/see …]} …];
    nil kind and id: in every scope."
   settings/actions-answer-shape)
+
+(defn show-page
+  "A component: [draw-page page], the page shown (nil for an address no
+   page has), or, while the page's :module loads, the start's
+   [placeholder page status], status :loading or :failed."
+  [draw-page]
+  [pages/show-page draw-page])
 
 (defn mount-root!
   "Draws [root] into the page's element with this id, with Reagent; call

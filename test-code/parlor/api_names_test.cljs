@@ -8,7 +8,7 @@
    [re-frame.registrar :as registrar]))
 
 (deftest the-function-names
-  (is (= '#{start-settings-shape actions-answer-shape mount-root!}
+  (is (= '#{start-settings-shape actions-answer-shape show-page mount-root!}
          (set (keys (ns-publics 'parlor.api))))))
 
 (defn- public-parlor-names [kind]
@@ -17,7 +17,7 @@
 
 (deftest the-event-and-subscription-names
   (is (= #{:parlor/start :parlor/watch :parlor/own :parlor/release :parlor/ask-again
-           :parlor/once-answered :parlor/send :parlor/go-to}
+           :parlor/once-answered :parlor/send :parlor/go-to :parlor/hold :parlor/let-go}
          (public-parlor-names :event)))
   (is (= #{:parlor/answer :parlor/can-i? :parlor/page}
          (public-parlor-names :sub))))
