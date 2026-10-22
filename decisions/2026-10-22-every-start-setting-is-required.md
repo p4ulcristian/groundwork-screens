@@ -1,5 +1,7 @@
 # Every start setting is required; parlor takes no log
 
+> **Changed in part** by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md) (2026-10-22, v0.2.0): `:questions-of-page` is `:questions-of-pages`, one declaration for every page, checked against `:pages`; `:parlor/go-to-page` is `:parlor/go-to`.
+
 > Follows mailroom's [Every value that sets behaviour is a setting](https://github.com/p4ulcristian/mailroom/blob/main/decisions/2026-10-22-every-value-that-sets-behaviour-is-a-setting.md).
 
 **Decision:** `[:parlor/start settings]` checks its settings with malli first, `start-settings-shape`, the map closed, every key required, nil written out where nothing applies; a missing or unknown key refuses, `:parlor/bad-settings`, with every problem at once:

@@ -11,7 +11,7 @@ person may do, and puts the page the address bar leads to
 ([mailroom](https://github.com/p4ulcristian/mailroom)'s routing) in the db.
 
 ```clojure
-io.github.p4ulcristian/parlor {:git/tag "v0.1.0" :git/sha "8d42d08"}
+io.github.p4ulcristian/parlor {:git/tag "v0.2.0" :git/sha "…"}
 ```
 
 Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, mailroom and malli; react
@@ -31,7 +31,7 @@ the app (house) makes them and hands them to the start.
 | `[:parlor/once-answered question event]` | `event` gets the data once: now, or with the next good answer |
 | `[:parlor/send [name params] event]` | a write; `event` gets `{:status :ready :data …}` or `{:status :error :error …}`; a good answer asks again what its notes name |
 | `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer (`actions-answer-shape`); `scope` is `[kind id]` or a list of them |
-| `[:parlor/page]` (sub) `[:parlor/go-to-page name path-params]` | the page, `{:name :page :path-params :query}` or nil; a move |
+| `[:parlor/page]` (sub) `[:parlor/go-to name path-params]` | the page, `{:name :page :path-params :query}` or nil; a move. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them |
 | `mount-root!` | `[root]` drawn into the element with this id; again after a save |
 
 Nothing asks before `:parlor/start`: watch, own, ask-again, once-answered
@@ -44,16 +44,15 @@ and send throw `:parlor/asked-before-start`, naming the messages.
   (:require [parlor.api :as parlor] [re-frame.core :as rf]))
 
 ;; the start (house's), with what it made
-(rf/dispatch-sync [:parlor/start {:store             store            ; doorbell/make-question-store
-                                  :send-message!     send-message!    ; the one the store asks through
-                                  :pages             pages            ; the server's, from the page
-                                  :questions-of-page (fn [{:keys [name path-params]}]
-                                                       (case name
-                                                         :orders/page [[:orders/of-shop {:shop/id (parse-uuid (:shop-id path-params))}]]
-                                                         []))
-                                  :actions-question  [:people/actions {}]   ; nil: every "can I?" is no
-                                  :on-answer-failed  [:shop/answer-failed]  ; nil for none
-                                  :on-move           nil}])
+(rf/dispatch-sync [:parlor/start {:store              store            ; doorbell/make-question-store
+                                  :send-message!      send-message!    ; the one the store asks through
+                                  :pages              pages            ; the server's, from the page
+                                  :questions-of-pages {:orders/page (fn [{:keys [path-params]}]   ; one for every page
+                                                                      [[:orders/of-shop {:shop/id (parse-uuid (:shop-id path-params))}]])
+                                                       :about/page  (fn [_] [])}
+                                  :actions-question   [:people/actions {}]   ; nil: every "can I?" is no
+                                  :on-answer-failed   [:shop/answer-failed]  ; nil for none
+                                  :on-move            nil}])
 
 (defn orders-page [shop-id]
   (let [{:keys [status data error]} @(rf/subscribe [:parlor/answer [:orders/of-shop {:shop/id shop-id}]])

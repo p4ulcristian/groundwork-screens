@@ -5,13 +5,13 @@
    namespace loads; its functions are below.
 
      ;; once, at the start, with the store and the send function the app made
-     (rf/dispatch-sync [:parlor/start {:store             store             ; doorbell's question store
-                                       :send-message!     send-message!     ; the function the store asks through
-                                       :pages             pages             ; the server's, from the page
-                                       :questions-of-page questions-of-page ; (fn [page]) -> what it needs on arrival
-                                       :actions-question  [:doorman/actions-of-person {}]   ; or nil
-                                       :on-answer-failed  [:app/answer-failed]              ; or nil
-                                       :on-move           nil}])                            ; or an event
+     (rf/dispatch-sync [:parlor/start {:store              store            ; doorbell's question store
+                                       :send-message!      send-message!    ; the function the store asks through
+                                       :pages              pages            ; the server's, from the page
+                                       :questions-of-pages {:orders/page (fn [{:keys [path-params]}] […])}  ; each page's
+                                       :actions-question   [:people/actions {}]   ; or nil
+                                       :on-answer-failed   [:app/answer-failed]   ; or nil
+                                       :on-move            nil}])                 ; or an event
      (parlor/mount-root! \"app\" root)
 
      (rf/dispatch [:parlor/watch :order-panel [[:orders/one {:order/id id}]]])  ; adds
@@ -25,7 +25,7 @@
      (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]])
      @(rf/subscribe [:parlor/can-i? :orders/edit [:shop shop-id]])
      @(rf/subscribe [:parlor/page])   ;=> {:name :orders/page :page … :path-params … :query …} or nil
-     (rf/dispatch [:parlor/go-to-page :orders/order {:order-id id}])
+     (rf/dispatch [:parlor/go-to :orders/order {:order-id id}])
 
    Nothing asks before :parlor/start: :parlor/watch, :parlor/own,
    :parlor/ask-again, :parlor/once-answered and :parlor/send throw
@@ -42,7 +42,7 @@
 
 (def start-settings-shape
   ":parlor/start's settings, every key required: :store :send-message!
-   :pages :questions-of-page :actions-question :on-answer-failed :on-move
+   :pages :questions-of-pages :actions-question :on-answer-failed :on-move
    (see parlor.settings)."
   settings/start-settings-shape)
 

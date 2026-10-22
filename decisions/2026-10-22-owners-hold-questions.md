@@ -1,5 +1,7 @@
 # Owners hold questions; a page owns its questions
 
+> **Changed in part** by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md) (2026-10-22, v0.2.0): `:questions-of-page` is `:questions-of-pages`, one declaration for every page, checked against `:pages`; `:parlor/go-to-page` is `:parlor/go-to`.
+
 > Carries over Groundwork v0.5.0's `::store/ensure`, `::store/own` and `::store/release`, and a route's `:reads`.
 
 **Decision:**

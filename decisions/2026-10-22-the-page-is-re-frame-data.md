@@ -1,5 +1,7 @@
 # The page is re-frame data, from mailroom's routing
 
+> **Changed in part** by [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md) (2026-10-22, v0.2.0): `:questions-of-page` is `:questions-of-pages`, one declaration for every page, checked against `:pages`; `:parlor/go-to-page` is `:parlor/go-to`.
+
 > Changes in part Groundwork's "Routing is Groundwork's, and a route is a record": the routing is mailroom's now; parlor puts its page in re-frame.
 
 **Decision:** `:parlor/start` follows the address bar with mailroom's `start-following-address!` and the start's `:pages` (the server's, from the page). On every move:

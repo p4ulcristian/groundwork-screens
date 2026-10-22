@@ -155,7 +155,7 @@
     (let [names (distinct (keep first questions))]
       (throw (ex-info (str "Asked " (if (seq names) (str/join ", " names) "parlor") " (" what
                            ") before :parlor/start. Nothing asks before the start: what a page needs"
-                           " on arrival is its :questions-of-page, and code that asks while its"
+                           " on arrival is declared in its :questions-of-pages, and code that asks while its"
                            " namespace loads belongs in an event after the start.")
                       {:type :parlor/asked-before-start :what what :message-names (vec names)})))))
 

@@ -66,7 +66,7 @@
       (rf/dispatch-sync [:parlor/start (merge {:store             store
                                                :send-message!     send-message!
                                                :pages             {}
-                                               :questions-of-page (fn [_] [])
+                                               :questions-of-pages {}
                                                :actions-question  nil
                                                :on-answer-failed  nil
                                                :on-move           nil}
@@ -80,9 +80,19 @@
   (reset! rf-db/app-db {})
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:pages {} :colour "red"}]))]
     (is (= :parlor/bad-settings type))
-    (is (= #{:store :send-message! :questions-of-page :actions-question :on-answer-failed :on-move :colour}
+    (is (= #{:store :send-message! :questions-of-pages :actions-question :on-answer-failed :on-move :colour}
            (set (keys errors)))
-        "every missing key and the unknown one, at once")))
+        "every missing key and the unknown one, at once"))
+  (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
+                                                                              :send-message!      identity
+                                                                              :pages              {:orders/page {:address "/orders" :title nil}}
+                                                                              :questions-of-pages {:shops/page (fn [_] [])}
+                                                                              :actions-question   nil
+                                                                              :on-answer-failed   nil
+                                                                              :on-move            nil}]))]
+    (is (= :parlor/bad-settings type))
+    (is (= {:questions-of-pages ["no questions declared for the page :orders/page" "no page :shops/page in :pages"]} errors)
+        "every page declares its questions, and only pages there are")))
 
 (deftest nothing-asks-before-the-start
   (reset! rf-db/app-db {})
@@ -271,16 +281,16 @@
            (reset! rf-db/app-db {})
            (reset! heard [])
            (with-redefs [mailroom/start-following-address! (fn [pages f]
-                                                             (is (= {:orders/page {:address "/orders" :title "Orders"}} pages))
+                                                             (is (= #{:orders/page :orders/order} (set (keys pages))))
                                                              (reset! on-page f))]
              (rf/dispatch-sync [:parlor/start {:store             store
                                                :send-message!     send-message!
-                                               :pages             {:orders/page {:address "/orders" :title "Orders"}}
-                                               :questions-of-page (fn [{:keys [name path-params]}]
-                                                                    (case name
-                                                                      :orders/page  [[:orders/all {}] [:shops/all {}]]
-                                                                      :orders/order [[:orders/one {:order/id (:order-id path-params)}]
-                                                                                     [:shops/all {}]]))
+                                               :pages             {:orders/page  {:address "/orders" :title "Orders"}
+                                                                   :orders/order {:address "/orders/:order-id" :title "Order"}}
+                                               :questions-of-pages {:orders/page  (fn [_] [[:orders/all {}] [:shops/all {}]])
+                                                                    :orders/order (fn [{:keys [path-params]}]
+                                                                                    [[:orders/one {:order/id (:order-id path-params)}]
+                                                                                     [:shops/all {}]])}
                                                :actions-question  nil
                                                :on-answer-failed  nil
                                                :on-move           [:test/heard :moved]}]))
@@ -306,6 +316,6 @@
                                                       @heard))
                                                (let [moved (atom nil)]
                                                  (with-redefs [mailroom/go-to-page! (fn [& args] (reset! moved (vec args)))]
-                                                   (rf/dispatch-sync [:parlor/go-to-page :orders/order {:order-id "8"}]))
+                                                   (rf/dispatch-sync [:parlor/go-to :orders/order {:order-id "8"}]))
                                                  (is (= [:orders/order {:order-id "8"}] @moved)))
                                                (done))))))))))
