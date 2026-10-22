@@ -11,7 +11,7 @@ person may do, and puts the page the address bar leads to
 ([mailroom](https://github.com/p4ulcristian/mailroom)'s routing) in the db.
 
 ```clojure
-io.github.p4ulcristian/parlor {:git/tag "v0.6.0" :git/sha "3ab7f3b"}
+io.github.p4ulcristian/parlor {:git/tag "v0.7.0" :git/sha "9c49f71"}
 ```
 
 Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, mailroom, dictionary and malli; react
