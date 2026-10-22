@@ -20,9 +20,15 @@
   ":parlor/start's settings, every key required.
    :store: doorbell's question store (doorbell.api/make-question-store);
    parlor keeps its answers from it.
-   :send-message!: (fn [message]) -> a promise of the answer keyed by
-   name, with :mailroom/notes beside it: the function the store asks
-   through. Writes are sent through it.
+   :send-write!: (fn [message once-key]) -> a promise of the answer keyed
+   by name, with :mailroom/notes beside it: what :parlor/send sends a
+   write through, with its one-time key, a fresh random id per send, the
+   same on each retry of that send (house: the store's send function with
+   the key in the idempotency-key header). A promise that fails means no
+   answer: the network, the server down, a page that isn't an answer.
+   :retry-writes: {:times n :wait-ms ms}: a send that got no answer is sent
+   again, with the same key, up to :times more, :wait-ms apart, so the
+   server saves it once; {:times 0 …} for never.
    :pages: the pages the server put in the page, for mailroom's
    start-following-address!.
    :questions-of-pages: every page's declaration of the questions it
@@ -38,7 +44,10 @@
    nil for none."
   [:map {:closed true}
    [:store [:fn {:error/message "should be doorbell's question store, made by doorbell.api/make-question-store"} map?]]
-   [:send-message! fn?]
+   [:send-write! fn?]
+   [:retry-writes [:map {:closed true}
+                   [:times [:int {:min 0}]]
+                   [:wait-ms [:int {:min 0}]]]]
    [:pages map?]
    [:questions-of-pages [:map-of :qualified-keyword fn?]]
    [:actions-question [:maybe question-shape]]

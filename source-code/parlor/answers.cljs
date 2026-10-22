@@ -18,7 +18,10 @@
      data is there and no fresher answer is on its way, else with the next
      good answer; a failed answer, or the question let go, tells it
      nothing.
-   - :parlor/send sends a message that changes data. Its event gets
+   - :parlor/send sends a message that changes data, through the start's
+     :send-write!, with a one-time key made for this send (a random id):
+     a send that gets no answer is sent again with the same key, the
+     start's :retry-writes, and the server saves it once. Its event gets
      {:status :ready :data answer} or {:status :error :error answer}. A
      good answer asks again, through doorbell, every watched question that
      read a table the write's notes name, as a change heard on the sse line
@@ -207,9 +210,26 @@
       (doseq [table tables]
         (doorbell/hear-changed-table! store table)))))
 
+(defn make-once-key
+  "A write's one-time key: a random id, text."
+  []
+  (str (random-uuid)))
+
+(defn send-with-retries
+  "(send-write! message once-key), and again with the same key while it
+   gets no answer (its promise fails), up to times more, wait-ms apart. A
+   promise of the first answer, or failed after the last try."
+  [send-write! message once-key {:keys [times wait-ms] :as retry-writes}]
+  (-> (send-write! message once-key)
+      (.catch (fn [error]
+                (if (pos? times)
+                  (-> (js/Promise. (fn [resolve _] (js/setTimeout resolve wait-ms)))
+                      (.then #(send-with-retries send-write! message once-key (assoc retry-writes :times (dec times)))))
+                  (js/Promise.reject error))))))
+
 (rf/reg-fx :parlor/-send
            (fn [{:keys [started message-name params on-answer]}]
-             (-> ((:send-message! started) {message-name params})
+             (-> (send-with-retries (:send-write! started) {message-name params} (make-once-key) (:retry-writes started))
                  (.then (fn [answer] answer) (fn [_] {message-name no-answer}))
                  (.then (fn [answer]
                           (let [data (get answer message-name)]

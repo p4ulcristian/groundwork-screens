@@ -1,3 +1,5 @@
+> **Changed in part** by [A write carries a one-time key, kept across its retries](2026-10-23-a-write-carries-a-one-time-key-kept-across-its-retries.md) (2026-10-23, v0.4.0): a write's one-time key is back; the server keeps it (house).
+
 # What parlor leaves out of Groundwork v0.5.0
 
 **Decision:** these parts of v0.5.0's browser store are not in parlor:

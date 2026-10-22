@@ -20,13 +20,11 @@
    failing atom is answered {:error \"Not found.\"}, one in the offline
    atom gets no answer."
   [tables-by-name answer-of]
-  (let [asked   (atom {})
-        failing (atom #{})
-        offline (atom #{})]
-    {:asked         asked
-     :failing       failing
-     :offline       offline
-     :send-message! (fn [message]
+  (let [asked     (atom {})
+        failing   (atom #{})
+        offline   (atom #{})
+        once-keys (atom [])
+        send!     (fn [message]
                       (let [[message-name] (first message)
                             n              (get (swap! asked update message-name (fnil inc 0)) message-name)]
                         (if (contains? @offline message-name)
@@ -36,7 +34,15 @@
                                                    {:error "Not found."}
                                                    (answer-of message-name n))}
                              (contains? tables-by-name message-name)
-                             (assoc :mailroom/notes {message-name {:tables (get tables-by-name message-name)}}))))))}))
+                             (assoc :mailroom/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
+    {:asked         asked
+     :failing       failing
+     :offline       offline
+     :once-keys     once-keys
+     :send-message! send!
+     :send-write!   (fn [message once-key]
+                      (swap! once-keys conj [(ffirst message) once-key])
+                      (send! message))}))
 
 (defn- after-ms [ms f] (js/setTimeout f ms))
 
@@ -57,14 +63,17 @@
 (rf/reg-event-db :test/heard (fn [db [_ & more]] (swap! heard conj (vec more)) db))
 
 (defn- start!
-  "A fresh db and a started parlor, following no address."
+  "A fresh db and a started parlor, following no address; writes go
+   through the stand-in's send-message!, unkeyed, unless more-settings
+   says :send-write!."
   [send-message! more-settings]
   (reset! rf-db/app-db {})
   (reset! heard [])
   (let [store (doorbell/make-question-store send-message! store-settings)]
     (with-redefs [mailroom/start-following-address! (fn [_ _] nil)]
       (rf/dispatch-sync [:parlor/start (merge {:store             store
-                                               :send-message!     send-message!
+                                               :send-write!       (fn [message _] (send-message! message))
+                                               :retry-writes      {:times 0 :wait-ms 0}
                                                :pages             {}
                                                :questions-of-pages {}
                                                :actions-question  nil
@@ -80,11 +89,12 @@
   (reset! rf-db/app-db {})
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:pages {} :colour "red"}]))]
     (is (= :parlor/bad-settings type))
-    (is (= #{:store :send-message! :questions-of-pages :actions-question :on-answer-failed :on-move :colour}
+    (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :on-answer-failed :on-move :colour}
            (set (keys errors)))
         "every missing key and the unknown one, at once"))
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
-                                                                              :send-message!      identity
+                                                                              :send-write!        identity
+                                                                              :retry-writes       {:times 0 :wait-ms 0}
                                                                               :pages              {:orders/page {:address "/orders" :title nil}}
                                                                               :questions-of-pages {:shops/page (fn [_] [])}
                                                                               :actions-question   nil
@@ -257,6 +267,40 @@
                                                                "no answer is an error; nil means no event")
                                                            (done))))))))))))
 
+(deftest a-write-carries-a-one-time-key-kept-across-its-retries
+  (async done
+         (let [{:keys [offline once-keys send-message! send-write!]}
+               (make-stand-in-server {:orders/move ["orders"]} (fn [_ n] {:moved n}))
+               _ (start! send-message! {:send-write! send-write! :retry-writes {:times 2 :wait-ms 5}})]
+           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :first]])
+           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :second]])
+           (after-ms 30
+                     (fn []
+                       (let [[[_ first-key] [_ second-key]] @once-keys]
+                         (is (= 2 (count @once-keys)))
+                         (is (string? first-key))
+                         (is (not= first-key second-key) "a fresh key for each send"))
+                       (reset! once-keys [])
+                       (reset! heard [])
+                       (reset! offline #{:orders/move})
+                       (after-ms 7 #(reset! offline #{}))
+                       (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :retried]])
+                       (after-ms 40
+                                 (fn []
+                                   (is (<= 2 (count @once-keys) 3) "sent again while it got no answer")
+                                   (is (= 1 (count (set (map second @once-keys)))) "with the same key each time")
+                                   (is (= [[:retried :ready]] (map (juxt first (comp :status second)) @heard))
+                                       "and its event told the answer once")
+                                   (reset! once-keys [])
+                                   (reset! heard [])
+                                   (reset! offline #{:orders/move})
+                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :gave-up]])
+                                   (after-ms 40
+                                             (fn []
+                                               (is (= 3 (count @once-keys)) "the first try and :times more")
+                                               (is (= [[:gave-up {:status :error :error {:error "No answer from the server."}}]] @heard))
+                                               (done))))))))))
+
 (deftest a-write-without-notes-asks-again-everything-watched
   (async done
          (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"]}
@@ -311,7 +355,8 @@
                                                              (is (= #{:orders/page :orders/order} (set (keys pages))))
                                                              (reset! on-page f))]
              (rf/dispatch-sync [:parlor/start {:store             store
-                                               :send-message!     send-message!
+                                               :send-write!       (fn [message _] (send-message! message))
+                                               :retry-writes      {:times 0 :wait-ms 0}
                                                :pages             {:orders/page  {:address "/orders" :title "Orders"}
                                                                    :orders/order {:address "/orders/:order-id" :title "Order"}}
                                                :questions-of-pages {:orders/page  (fn [_] [[:orders/all {}] [:shops/all {}]])

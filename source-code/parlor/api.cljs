@@ -6,7 +6,8 @@
 
      ;; once, at the start, with the store and the send function the app made
      (rf/dispatch-sync [:parlor/start {:store              store            ; doorbell's question store
-                                       :send-message!      send-message!    ; the function the store asks through
+                                       :send-write!        send-write!      ; (fn [message once-key]): a write, with its one-time key
+                                       :retry-writes       {:times 2 :wait-ms 1000}   ; a write that got no answer, sent again
                                        :pages              pages            ; the server's, from the page
                                        :questions-of-pages {:orders/page (fn [{:keys [path-params]}] […])}  ; each page's
                                        :actions-question   [:doorman/my-actions {}]   ; doorman's, or nil
@@ -41,8 +42,8 @@
    [parlor.start]))
 
 (def start-settings-shape
-  ":parlor/start's settings, every key required: :store :send-message!
-   :pages :questions-of-pages :actions-question :on-answer-failed :on-move
+  ":parlor/start's settings, every key required: :store :send-write!
+   :retry-writes :pages :questions-of-pages :actions-question :on-answer-failed :on-move
    (see parlor.settings)."
   settings/start-settings-shape)
 

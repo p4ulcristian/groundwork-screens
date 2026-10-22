@@ -29,7 +29,7 @@ the app (house) makes them and hands them to the start.
 | `[:parlor/answer question]` (sub) | `{:status :loading}`, `:ready` with `:data`, `:error` with `:error`, `:refresh-error` with the old `:data` and the `:error` |
 | `[:parlor/ask-again question]` | a held question asked again now |
 | `[:parlor/once-answered question event]` | `event` gets the data once: now, or, while a fresher answer is on its way (doorbell's `is-question-being-asked?`) or none is there, with the next good answer |
-| `[:parlor/send [name params] event]` | a write; `event` gets `{:status :ready :data …}` or `{:status :error :error …}`; a good answer asks again what its notes name |
+| `[:parlor/send [name params] event]` | a write, through `:send-write!` with a one-time key made for this send, sent again with the same key while it gets no answer (`:retry-writes`); `event` gets `{:status :ready :data …}` or `{:status :error :error …}`; a good answer asks again what its notes name |
 | `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer (`actions-answer-shape`, doorman's `make-my-actions-handler`'s); `scope` is `[kind id]` or a list of them |
 | `[:parlor/page]` (sub) `[:parlor/go-to name path-params]` | the page, `{:name :page :path-params :query}` or nil; a move. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them |
 | `mount-root!` | `[root]` drawn into the element with this id; again after a save |
@@ -45,7 +45,8 @@ and send throw `:parlor/asked-before-start`, naming the messages.
 
 ;; the start (house's), with what it made
 (rf/dispatch-sync [:parlor/start {:store              store            ; doorbell/make-question-store
-                                  :send-message!      send-message!    ; the one the store asks through
+                                  :send-write!        send-write!      ; (fn [message once-key]): a write and its one-time key
+                                  :retry-writes       {:times 2 :wait-ms 1000}   ; no answer: sent again, same key
                                   :pages              pages            ; the server's, from the page
                                   :questions-of-pages {:orders/page (fn [{:keys [path-params]}]   ; one for every page
                                                                       [[:orders/of-shop {:shop/id (parse-uuid (:shop-id path-params))}]])
@@ -85,7 +86,7 @@ The move's answer asks again `[:orders/of-shop …]` (its notes name
 ## Tests
 
 ```sh
-npm install && npx shadow-cljs compile test   # on node, over doorbell's real store and a stand-in send-message!
+npm install && npx shadow-cljs compile test   # on node, over doorbell's real store and a stand-in server
 ```
 
 Why it is the way it is: [`decisions/`](decisions/README.md).
