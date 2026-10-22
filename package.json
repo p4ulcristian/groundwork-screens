@@ -1,11 +1,12 @@
 {
   "name": "parlor",
   "private": true,
-  "description": "parlor's ClojureScript test build; react and react-dom for Reagent",
+  "description": "parlor's ClojureScript test build; react and react-dom for Reagent, intl-messageformat for dictionary's texts",
   "scripts": {
     "test": "shadow-cljs compile test"
   },
   "dependencies": {
+    "intl-messageformat": "12.1.3",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

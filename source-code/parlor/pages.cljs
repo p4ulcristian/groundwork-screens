@@ -30,6 +30,7 @@
    [dictionary.api :as dictionary]
    [mailroom.api :as mailroom]
    [parlor.answers :as answers]
+   [parlor.texts :as texts]
    [re-frame.core :as rf]
    [reagent.core :as reagent]))
 
@@ -136,11 +137,13 @@
                                                                                      (when (is-module-loading? db module-name) scroll)))
                                                                    :parlor/page
                                                                    (if page (vec ((get questions-of-pages (:name page)) page)) []))]
-                     (assoc owned :fx (cond-> fx
+                     (let [[parlor fetch-fx] (texts/fetch-what-is-missing (:parlor (:db owned)))
+                           owned             (assoc-in owned [:db :parlor] (texts/show-texts-in-wanted-language parlor))]
+                     (assoc owned :fx (cond-> (into fx fetch-fx)
                                         load?                                         (conj [:parlor/-load-module {:load-module! load-module!
                                                                                                                    :module-name  module-name}])
                                         (not (is-module-loading? db module-name))     (conj [:parlor/-scroll scroll])
-                                        on-move                                       (conj [:dispatch (conj on-move {:from from :to page})]))))))
+                                        on-move                                       (conj [:dispatch (conj on-move {:from from :to page})])))))))
 
 (defn- scroll-if-the-page-waits
   "The scroll a page whose module just loaded waited for."

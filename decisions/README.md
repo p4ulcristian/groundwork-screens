@@ -21,3 +21,4 @@ parlor rebuilds the browser half of Groundwork v0.5.0 (now house, the part of ma
 - [A write carries a one-time key, kept across its retries](2026-10-23-a-write-carries-a-one-time-key-kept-across-its-retries.md)
 - [A page has its query and language, scrolls once drawn, holds unsaved changes, and loads its module on the way in](2026-10-23-a-page-has-its-query-and-language-scrolls-once-drawn-holds-unsaved-changes-and-loads-its-module.md)
 - ["Can I?" checks the answer by the shape it is handed; parlor's copy of doorman's shape is gone](2026-10-23-can-i-checks-the-answer-by-the-shape-it-is-handed.md)
+- [Texts are re-frame data, in the page's language; a swapped catalog draws again](2026-10-23-texts-are-re-frame-data-in-the-pages-language.md)

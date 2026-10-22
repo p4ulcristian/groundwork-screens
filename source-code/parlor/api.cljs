@@ -31,6 +31,8 @@
      (rf/dispatch [:parlor/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
      (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]])
      @(rf/subscribe [:parlor/can-i? :orders/edit [:shop shop-id]])
+     @(rf/subscribe [:parlor/text :orders.cart/add {:count 3}])   ; in the page's language; nil until its catalog is in
+     @(rf/subscribe [:parlor/texts-ready?])
      @(rf/subscribe [:parlor/page])   ;=> {:name :orders/page :page … :path-params … :query … :language …} or nil
      (rf/dispatch [:parlor/go-to :orders/order {:order-id id} {}])   ; a query, {} for none
      (rf/dispatch [:parlor/hold \"Leave without saving?\"])         ; asked before leaving the page
@@ -48,7 +50,8 @@
    [parlor.pages :as pages]
    [parlor.screen :as screen]
    [parlor.settings :as settings]
-   [parlor.start]))
+   [parlor.start]
+   [parlor.texts]))
 
 (def start-settings-shape
   ":parlor/start's settings, every key required: :store :send-write!

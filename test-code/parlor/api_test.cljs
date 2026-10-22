@@ -5,6 +5,7 @@
    needs a browser's history, is replaced where a test follows pages."
   (:require
    [cljs.test :refer [async deftest is testing]]
+   [dictionary.api :as dictionary]
    [doorbell.api :as doorbell]
    [mailroom.api :as mailroom]
    [parlor.api :as parlor]
@@ -416,7 +417,9 @@
                                                :on-answer-failed  nil
                                                :on-move           [:test/heard :moved]
                                                :query-shapes-of-pages {:orders/page [:map [:tab :keyword]] :orders/order nil}
-                                               :languages         {:dictionary       {:languages ["en" "de"] :default "en" :cookie-name nil}
+                                               :languages         {:dictionary       {:languages ["en" "de"] :default "en" :cookie-name nil
+                                                                                      :preview-languages [] :fallback-language "en"
+                                                                                      :catalogs-path "i18n"}
                                                                    :language-of-page "en"}
                                                :load-module!      nil
                                                :placeholder       nil}]))
@@ -553,3 +556,46 @@
                        (is (= [:top :keep] @scrolls) "and now at once")
                        (stop)
                        (done))))))
+
+(deftest texts-in-the-pages-language
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               fetched  (atom [])
+               fetch    dictionary/fetch-catalog!
+               catalogs {"en" {"orders.cart/add" "Add {count, plural, one {# item} other {# items}}" "orders.cart/title" "Cart"}
+                         "de" {"orders.cart/add" "{count} Artikel hinzufügen"}}
+               page     (fn [language] {:name :orders/list :page {:address "/orders" :title nil :name :orders/list}
+                                        :path-params {} :query {} :query-errors nil :fragment nil :language language})]
+           (set! dictionary/fetch-catalog! (fn [_ language]
+                                             (swap! fetched conj language)
+                                             (js/Promise. (fn [resolve _] (js/setTimeout #(resolve (get catalogs language)) 10)))))
+           (start-following! send-message! {:orders/list {:address "/orders" :title nil}} {:orders/list (fn [_] [])}
+                             {:languages {:dictionary {:languages ["en" "de"] :default "en" :cookie-name nil :preview-languages []
+                                                       :fallback-language "en" :catalogs-path "i18n"}
+                                          :language-of-page "en"}})
+           (is (= ["en"] @fetched) "the page's language, which is the fallback too, fetched once")
+           (is (nil? (sub [:parlor/text :orders.cart/add {:count 2}])) "nothing before its catalog is in")
+           (is (false? (sub [:parlor/texts-ready?])))
+           (after-ms 30
+                     (fn []
+                       (is (true? (sub [:parlor/texts-ready?])))
+                       (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])))
+                       (arrive! (page "de") :keep)
+                       (is (= ["en" "de"] @fetched) "a page in another language fetches its catalog")
+                       (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])) "the language shown before, while it comes")
+                       (after-ms 30
+                                 (fn []
+                                   (is (= "2 Artikel hinzufügen" (sub [:parlor/text :orders.cart/add {:count 2}])) "swapped")
+                                   (is (= "Cart" (sub [:parlor/text :orders.cart/title {}])) "missing in German: the fallback's")
+                                   (is (= "orders.cart/gone" (sub [:parlor/text :orders.cart/gone {}])) "missing everywhere: its key")
+                                   (arrive! (page "en") :keep)
+                                   (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])) "back at once: it is in")
+                                   (is (= ["en" "de"] @fetched))
+                                   (set! dictionary/fetch-catalog! fetch)
+                                   (done))))))))
+
+(deftest without-languages-a-text-is-its-key
+  (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))]
+    (start! send-message! {})
+    (is (true? (sub [:parlor/texts-ready?])))
+    (is (= "orders.cart/add" (sub [:parlor/text :orders.cart/add {}])))))
