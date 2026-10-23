@@ -1,48 +1,48 @@
-(ns parlor.api-test
-  "parlor on node, over doorbell's real question store asking through a
+(ns groundwork-screens.api-test
+  "groundwork-screens on node, over groundwork-live-updates's real question store asking through a
    stand-in send-message! that answers at once, notes the tables each
    message read, and fails a name on demand. bridge's routing, which
    needs a browser's history, is replaced where a test follows pages."
   (:require
    [cljs.test :refer [async deftest is testing]]
-   [dictionary.api :as dictionary]
-   [doorbell.api :as doorbell]
-   [bridge.api :as bridge]
-   [parlor.answers]
-   [parlor.api :as parlor]
-   [parlor.can-i :as can-i]
-   [parlor.pages :as pages]
+   [groundwork-languages.api :as languages]
+   [groundwork-live-updates.api :as live-updates]
+   [groundwork-bridge.api :as bridge]
+   [groundwork-screens.answers]
+   [groundwork-screens.api :as screens]
+   [groundwork-screens.can-i :as can-i]
+   [groundwork-screens.pages :as pages]
    [re-frame.core :as rf]
    [re-frame.db :as rf-db]
    [reagent.ratom :as ratom]
-   [wire.api :as wire]))
+   [groundwork-shaped-json.api :as shaped-json]))
 
-(def ^:private test-wire
-  (wire/make-wire-from-settings {:most-shapes-kept 100 :most-keys-kept 1000 :exact-decimals nil}))
+(def ^:private test-shaper
+  (shaped-json/make-shaper-from-settings {:most-shapes-kept 100 :most-keys-kept 1000 :exact-decimals nil}))
 
 (def ^:private actions-shape
-  "doorman's my-actions-answer-shape, as the app hands it in."
+  "groundwork-access's my-actions-answer-shape, as the app hands it in."
   [:vector [:map {:closed true} [:scope-kind [:maybe :keyword]] [:scope-id [:maybe :uuid]] [:actions [:vector :keyword]]]])
 
 (def ^:private store-settings {:gather-changes-ms 10 :keep-unwatched-answers-ms 1000})
 
 (def ^:private not-found
   "A refusal as bridge's send-message! gives it."
-  {:bridge/refused :shop/gone :bridge/data nil :bridge/request-id "r-1"})
+  {:groundwork-bridge/refused :shop/gone :groundwork-bridge/data nil :groundwork-bridge/request-id "r-1"})
 
 (def ^:private no-answer
   "bridge's send-message! when no answer came."
-  {:bridge/refused :bridge/no-answer :bridge/data {:http-status nil}})
+  {:groundwork-bridge/refused :groundwork-bridge/no-answer :groundwork-bridge/data {:http-status nil}})
 
 (def ^:private signed-out
-  {:bridge/refused :doorman/signed-out :bridge/data nil :bridge/request-id "r-2"})
+  {:groundwork-bridge/refused :groundwork-access/signed-out :groundwork-bridge/data nil :groundwork-bridge/request-id "r-2"})
 
 (defn- make-stand-in-server
   "A send-message! counting asks by name and answering (answer-of name n),
    noting the tables tables-by-name says the name reads; a name in the
    failing atom is refused (not-found), one in the signed-out atom
    refused signed-out, one in the offline atom gets no answer, as bridge's
-   send-message! says it: :bridge/no-answer."
+   send-message! says it: :groundwork-bridge/no-answer."
   [tables-by-name answer-of]
   (let [asked     (atom {})
         failing   (atom #{})
@@ -59,7 +59,7 @@
                                                      (contains? @out message-name)     signed-out
                                                      :else                             (answer-of message-name n))}
                            (contains? tables-by-name message-name)
-                           (assoc :bridge/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
+                           (assoc :groundwork-bridge/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
     {:asked         asked
      :failing       failing
      :offline       offline
@@ -73,11 +73,11 @@
 (defn- after-ms [ms f] (js/setTimeout f ms))
 
 (defn- drawn-tr
-  "parlor/tr as a view calls it: inside a reaction (Reagent's reactive
+  "screens/tr as a view calls it: inside a reaction (Reagent's reactive
    context), read fresh."
   [message-key args]
   (rf/clear-subscription-cache!)
-  (let [drawing (ratom/make-reaction #(parlor/tr message-key args) :auto-run true)]
+  (let [drawing (ratom/make-reaction #(screens/tr message-key args) :auto-run true)]
     (try @drawing (finally (ratom/dispose! drawing)))))
 
 (defn- sub
@@ -101,22 +101,22 @@
   {:address "/orders/7" :way :push :index nil})
 
 (defn- start!
-  "A fresh db and a started parlor, following no address; writes go
+  "A fresh db and a started groundwork-screens, following no address; writes go
    through the stand-in's send-message!, unkeyed, unless more-settings
    says :send-write!."
   [send-message! more-settings]
   (reset! rf-db/app-db {})
   (reset! heard [])
-  (let [store (doorbell/make-question-store send-message! store-settings)]
+  (let [store (live-updates/make-question-store send-message! store-settings)]
     (with-redefs [bridge/start-following-address! (fn [_ _] nil)]
-      (rf/dispatch-sync [:parlor/start (merge {:store             store
+      (rf/dispatch-sync [:groundwork-screens/start (merge {:store             store
                                                :send-write!       (fn [message _] (send-message! message))
                                                :retry-writes      {:times 0 :wait-ms 0}
                                                :pages             {}
                                                :questions-of-pages {}
                                                :actions-question  nil
                                                :actions-answer-shape nil
-                                               :wire test-wire
+                                               :shaper test-shaper
                                                :on-answer-failed  nil
                                                :on-signed-out     nil
                                                :signed-out-reason nil
@@ -133,20 +133,20 @@
 
 (deftest the-settings-are-required
   (reset! rf-db/app-db {})
-  (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:pages {} :colour "red"}]))]
-    (is (= :parlor/bad-settings type))
-    (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :actions-answer-shape :wire
+  (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:groundwork-screens/start {:pages {} :colour "red"}]))]
+    (is (= :groundwork-screens/bad-settings type))
+    (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :actions-answer-shape :shaper
              :on-answer-failed :on-signed-out :signed-out-reason :on-move :query-shapes-of-pages :languages :load-module! :placeholder :colour}
            (set (keys errors)))
         "every missing key and the unknown one, at once"))
-  (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
+  (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:groundwork-screens/start {:store              {}
                                                                               :send-write!        identity
                                                                               :retry-writes       {:times 0 :wait-ms 0}
                                                                               :pages              {:orders/page {:address "/orders" :title nil}}
                                                                               :questions-of-pages {:shops/page (fn [_] [])}
                                                                               :actions-question   nil
                                                                               :actions-answer-shape nil
-                                                                              :wire test-wire
+                                                                              :shaper test-shaper
                                                                               :on-answer-failed   nil
                                                                               :on-signed-out      nil
                                                                               :signed-out-reason  nil
@@ -155,17 +155,17 @@
                                                                               :languages          nil
                                                                               :load-module!       nil
                                                                               :placeholder        nil}]))]
-    (is (= :parlor/bad-settings type))
+    (is (= :groundwork-screens/bad-settings type))
     (is (= {:questions-of-pages ["no questions declared for the page :orders/page" "no page :shops/page in :pages"]} errors)
         "every page declares its questions, and only pages there are"))
-  (let [{:keys [errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
+  (let [{:keys [errors]} (thrown-data #(rf/dispatch-sync [:groundwork-screens/start {:store              {}
                                                                          :send-write!        identity
                                                                          :retry-writes       {:times 0 :wait-ms 0}
                                                                          :pages              {:orders/page {:address "/orders" :title nil :module "admin"}}
                                                                          :questions-of-pages {:orders/page (fn [_] [])}
                                                                          :actions-question   nil
                                                                          :actions-answer-shape nil
-                                                                         :wire test-wire
+                                                                         :shaper test-shaper
                                                                          :on-answer-failed   nil
                                                                          :on-signed-out      nil
                                                                          :signed-out-reason  nil
@@ -179,43 +179,43 @@
 
 (deftest nothing-asks-before-the-start
   (reset! rf-db/app-db {})
-  (doseq [[event names] [[[:parlor/watch :orders-page [[:orders/all {}] [:shops/all {}]]] [:orders/all :shops/all]]
-                         [[:parlor/own :orders-page [[:orders/all {}]]] [:orders/all]]
-                         [[:parlor/ask-again [:orders/all {}]] [:orders/all]]
-                         [[:parlor/once-answered [:orders/all {}] [:test/heard]] [:orders/all]]
-                         [[:parlor/send [:orders/move {:order/id "1"}] [:test/heard] {:once-key (parlor/make-once-key) :keep-alive? false}] [:orders/move]]]]
+  (doseq [[event names] [[[:groundwork-screens/watch :orders-page [[:orders/all {}] [:shops/all {}]]] [:orders/all :shops/all]]
+                         [[:groundwork-screens/own :orders-page [[:orders/all {}]]] [:orders/all]]
+                         [[:groundwork-screens/ask-again [:orders/all {}]] [:orders/all]]
+                         [[:groundwork-screens/once-answered [:orders/all {}] [:test/heard]] [:orders/all]]
+                         [[:groundwork-screens/send [:orders/move {:order/id "1"}] [:test/heard] {:once-key (screens/make-once-key) :keep-alive? false}] [:orders/move]]]]
     (let [{:keys [type message-names]} (thrown-data #(rf/dispatch-sync event))]
-      (is (= :parlor/asked-before-start type) (str (first event) " throws"))
+      (is (= :groundwork-screens/asked-before-start type) (str (first event) " throws"))
       (is (= names message-names) "naming the messages")))
-  (is (= {:type :parlor/mounted-before-start :element-id "app"}
-         (thrown-data #(parlor/mount-root! "app" (fn [] [:div]))))
+  (is (= {:type :groundwork-screens/mounted-before-start :element-id "app"}
+         (thrown-data #(screens/mount-root! "app" (fn [] [:div]))))
       "nor is a root drawn: its texts would be their keys' names")
   (testing "release asks nothing, so it doesn't throw"
-    (is (nil? (thrown-data #(rf/dispatch-sync [:parlor/release :orders-page]))))))
+    (is (nil? (thrown-data #(rf/dispatch-sync [:groundwork-screens/release :orders-page]))))))
 
 (deftest the-four-statuses
   (async done
          (let [{:keys [asked failing send-message!]} (make-stand-in-server {:orders/all ["orders"]} (fn [_ n] [n]))
                _ (start! send-message! {:on-answer-failed [:test/heard :failed]})
                q [:orders/all {}]]
-           (rf/dispatch-sync [:parlor/watch :orders-page [q]])
-           (is (= {:status :loading} (sub [:parlor/answer q])) "loading until the first answer")
+           (rf/dispatch-sync [:groundwork-screens/watch :orders-page [q]])
+           (is (= {:status :loading} (sub [:groundwork-screens/answer q])) "loading until the first answer")
            (after-ms 20
                      (fn []
-                       (is (= {:status :ready :data [1]} (sub [:parlor/answer q])))
+                       (is (= {:status :ready :data [1]} (sub [:groundwork-screens/answer q])))
                        (swap! failing conj :orders/all)
-                       (rf/dispatch-sync [:parlor/ask-again q])
+                       (rf/dispatch-sync [:groundwork-screens/ask-again q])
                        (after-ms 20
                                  (fn []
                                    (is (= {:status :refresh-error :data [1] :error not-found}
-                                          (sub [:parlor/answer q]))
+                                          (sub [:groundwork-screens/answer q]))
                                        "a failed refresh keeps the good data")
                                    (is (= [[:failed q not-found]] @heard) "the app hears of it")
                                    (swap! failing disj :orders/all)
-                                   (rf/dispatch-sync [:parlor/ask-again q])
+                                   (rf/dispatch-sync [:groundwork-screens/ask-again q])
                                    (after-ms 20
                                              (fn []
-                                               (is (= {:status :ready :data [3]} (sub [:parlor/answer q])))
+                                               (is (= {:status :ready :data [3]} (sub [:groundwork-screens/answer q])))
                                                (is (= 3 (:orders/all @asked)))
                                                (done))))))))))
 
@@ -225,16 +225,16 @@
                _ (start! send-message! {})
                q [:orders/all {}]
                read (atom [])]
-           (rf/reg-event-db :test/read-answer (fn [db [_ question]] (swap! read conj (parlor/find-answer db question)) db))
+           (rf/reg-event-db :test/read-answer (fn [db [_ question]] (swap! read conj (screens/find-answer db question)) db))
            (rf/dispatch-sync [:test/read-answer q])
-           (rf/dispatch-sync [:parlor/watch :orders-page [q]])
+           (rf/dispatch-sync [:groundwork-screens/watch :orders-page [q]])
            (rf/dispatch-sync [:test/read-answer q])
            (after-ms 20
                      (fn []
                        (rf/dispatch-sync [:test/read-answer q])
                        (is (= [{:status :loading} {:status :loading} {:status :ready :data 1}] @read)
                            "nothing holds it, loading, then ready: the subscription's, without its owners")
-                       (is (= (sub [:parlor/answer q]) (parlor/find-answer @rf-db/app-db q)))
+                       (is (= (sub [:groundwork-screens/answer q]) (screens/find-answer @rf-db/app-db q)))
                        (done))))))
 
 (deftest a-failed-first-answer-is-an-error-and-asking-again-loads
@@ -243,16 +243,16 @@
                _ (start! send-message! {})
                q [:orders/one {:order/id "7"}]]
            (swap! failing conj :orders/one)
-           (rf/dispatch-sync [:parlor/watch :order-panel [q]])
+           (rf/dispatch-sync [:groundwork-screens/watch :order-panel [q]])
            (after-ms 20
                      (fn []
-                       (is (= {:status :error :error not-found} (sub [:parlor/answer q])))
+                       (is (= {:status :error :error not-found} (sub [:groundwork-screens/answer q])))
                        (swap! failing disj :orders/one)
-                       (rf/dispatch-sync [:parlor/ask-again q])
-                       (is (= {:status :loading} (sub [:parlor/answer q])) "loading, not the old error")
+                       (rf/dispatch-sync [:groundwork-screens/ask-again q])
+                       (is (= {:status :loading} (sub [:groundwork-screens/answer q])) "loading, not the old error")
                        (after-ms 20
                                  (fn []
-                                   (is (= {:status :ready :data 2} (sub [:parlor/answer q])))
+                                   (is (= {:status :ready :data 2} (sub [:groundwork-screens/answer q])))
                                    (done))))))))
 
 (deftest own-and-release
@@ -262,26 +262,26 @@
                a     [:orders/all {}]
                b     [:shops/all {}]
                c     [:people/all {}]]
-           (rf/dispatch-sync [:parlor/watch :orders-page [a b]])
-           (rf/dispatch-sync [:parlor/watch :side-panel [b]])
+           (rf/dispatch-sync [:groundwork-screens/watch :orders-page [a b]])
+           (rf/dispatch-sync [:groundwork-screens/watch :side-panel [b]])
            (after-ms 20
                      (fn []
                        (is (= {:orders/all 1 :shops/all 1} @asked) "a question held twice is watched once")
-                       (rf/dispatch-sync [:parlor/own :orders-page [b c]])
+                       (rf/dispatch-sync [:groundwork-screens/own :orders-page [b c]])
                        (after-ms 20
                                  (fn []
                                    (is (= {:orders/all 1 :shops/all 1 :people/all 1} @asked)
                                        "what it keeps isn't asked again; the new one is")
-                                   (is (= {:status :loading} (sub [:parlor/answer a])) "the one let go is dropped")
-                                   (is (= 1 (doorbell/find-kept-answer store a)) "doorbell keeps its answer a while")
-                                   (rf/dispatch-sync [:parlor/release :orders-page])
-                                   (is (= {:status :ready :data 1} (sub [:parlor/answer b])) "the side panel still holds it")
-                                   (is (= {:status :loading} (sub [:parlor/answer c])))
-                                   (rf/dispatch-sync [:parlor/watch :orders-page [a]])
+                                   (is (= {:status :loading} (sub [:groundwork-screens/answer a])) "the one let go is dropped")
+                                   (is (= 1 (live-updates/find-kept-answer store a)) "groundwork-live-updates keeps its answer a while")
+                                   (rf/dispatch-sync [:groundwork-screens/release :orders-page])
+                                   (is (= {:status :ready :data 1} (sub [:groundwork-screens/answer b])) "the side panel still holds it")
+                                   (is (= {:status :loading} (sub [:groundwork-screens/answer c])))
+                                   (rf/dispatch-sync [:groundwork-screens/watch :orders-page [a]])
                                    (after-ms 20
                                              (fn []
-                                               (is (= {:status :ready :data 2} (sub [:parlor/answer a]))
-                                                   "held again: doorbell's kept answer, then the fresh one")
+                                               (is (= {:status :ready :data 2} (sub [:groundwork-screens/answer a]))
+                                                   "held again: groundwork-live-updates's kept answer, then the fresh one")
                                                (done))))))))))
 
 (deftest once-answered
@@ -289,12 +289,12 @@
          (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
                _ (start! send-message! {})
                q [:orders/one {:order/id "7"}]]
-           (rf/dispatch-sync [:parlor/once-answered q [:test/heard :nothing-holds-it]])
-           (rf/dispatch-sync [:parlor/watch :order-form [q]])
-           (rf/dispatch-sync [:parlor/once-answered q [:test/heard :waited]])
+           (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :nothing-holds-it]])
+           (rf/dispatch-sync [:groundwork-screens/watch :order-form [q]])
+           (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :waited]])
            (after-ms 20
                      (fn []
-                       (rf/dispatch-sync [:parlor/once-answered q [:test/heard :now]])
+                       (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :now]])
                        (after-ms 10
                                  (fn []
                                    (is (= [[:waited 1] [:now 1]] @heard)
@@ -303,25 +303,25 @@
 
 (rf/reg-event-fx :test/then-once-answered
                  (fn [_ [_ question tag]]
-                   {:fx [[:dispatch [:parlor/once-answered question [:test/heard tag]]]]}))
+                   {:fx [[:dispatch [:groundwork-screens/once-answered question [:test/heard tag]]]]}))
 
 (deftest once-answered-waits-for-an-answer-on-its-way
   (async done
          (let [{:keys [send-message!]} (make-stand-in-server {:orders/all ["orders"] :orders/move ["orders"]} (fn [_ n] n))
                _ (start! send-message! {})
                q [:orders/all {}]]
-           (rf/dispatch-sync [:parlor/watch :orders-page [q]])
+           (rf/dispatch-sync [:groundwork-screens/watch :orders-page [q]])
            (after-ms 20
                      (fn []
-                       (is (= {:status :ready :data 1} (sub [:parlor/answer q])))
-                       (rf/dispatch-sync [:parlor/ask-again q])
-                       (rf/dispatch-sync [:parlor/once-answered q [:test/heard :asked-again]])
+                       (is (= {:status :ready :data 1} (sub [:groundwork-screens/answer q])))
+                       (rf/dispatch-sync [:groundwork-screens/ask-again q])
+                       (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :asked-again]])
                        (is (= [] @heard) "out now: it waits, not told the old data")
                        (after-ms 20
                                  (fn []
                                    (is (= [[:asked-again 2]] @heard) "told the fresh answer")
                                    (reset! heard [])
-                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/then-once-answered q :after-write] {:once-key (parlor/make-once-key) :keep-alive? false}])
+                                   (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/then-once-answered q :after-write] {:once-key (screens/make-once-key) :keep-alive? false}])
                                    (after-ms 40
                                              (fn []
                                                (is (= [[:after-write 3]] @heard)
@@ -334,27 +334,27 @@
                (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"] :orders/move ["orders" "order_moves"]}
                                      (fn [message-name n] (if (= :orders/move message-name) {:moved n} n)))
                _ (start! send-message! {})]
-           (rf/dispatch-sync [:parlor/watch :orders-page [[:orders/all {}] [:shops/all {}]]])
+           (rf/dispatch-sync [:groundwork-screens/watch :orders-page [[:orders/all {}] [:shops/all {}]]])
            (after-ms 20
                      (fn []
-                       (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
+                       (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (screens/make-once-key) :keep-alive? false}])
                        (after-ms 40
                                  (fn []
                                    (is (= [[:moved {:status :ready :data {:moved 1}}]] @heard))
                                    (is (= {:orders/all 2 :shops/all 1 :orders/move 1} @asked)
                                        "the write's tables are asked again; others aren't")
-                                   (is (= {:status :ready :data 2} (sub [:parlor/answer [:orders/all {}]])))
+                                   (is (= {:status :ready :data 2} (sub [:groundwork-screens/answer [:orders/all {}]])))
                                    (reset! heard [])
                                    (swap! failing conj :orders/move)
-                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
+                                   (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (screens/make-once-key) :keep-alive? false}])
                                    (after-ms 40
                                              (fn []
                                                (is (= [[:moved {:status :error :error not-found}]] @heard))
                                                (is (= 2 (:orders/all @asked)) "a failed write asks nothing again")
                                                (reset! heard [])
                                                (reset! offline #{:orders/move})
-                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] nil {:once-key (parlor/make-once-key) :keep-alive? false}])
-                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
+                                               (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] nil {:once-key (screens/make-once-key) :keep-alive? false}])
+                                               (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (screens/make-once-key) :keep-alive? false}])
                                                (after-ms 40
                                                          (fn []
                                                            (is (= [[:moved {:status :error :error no-answer}]] @heard)
@@ -366,20 +366,20 @@
          (let [{:keys [offline failing once-keys send-message! send-write!]}
                (make-stand-in-server {:orders/move ["orders"]} (fn [_ n] {:moved n}))
                _ (start! send-message! {:send-write! send-write! :retry-writes {:times 2 :wait-ms 5}})]
-           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :first] {:once-key "draft-1" :keep-alive? false}])
-           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :second] {:once-key "draft-1" :keep-alive? false}])
-           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "8"}] [:test/heard :third] {:once-key "draft-2" :keep-alive? false}])
+           (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :first] {:once-key "draft-1" :keep-alive? false}])
+           (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :second] {:once-key "draft-1" :keep-alive? false}])
+           (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "8"}] [:test/heard :third] {:once-key "draft-2" :keep-alive? false}])
            (after-ms 30
                      (fn []
                        (is (= ["draft-1" "draft-1" "draft-2"] (map second @once-keys))
                            "the key the caller wrote out: a second Save of the same draft is the same write")
-                       (is (string? (parlor/make-once-key)))
-                       (is (not= (parlor/make-once-key) (parlor/make-once-key)) "a fresh key each time one is made")
+                       (is (string? (screens/make-once-key)))
+                       (is (not= (screens/make-once-key) (screens/make-once-key)) "a fresh key each time one is made")
                        (reset! once-keys [])
                        (reset! heard [])
                        (reset! offline #{:orders/move})
                        (after-ms 7 #(reset! offline #{}))
-                       (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :retried] {:once-key (parlor/make-once-key) :keep-alive? false}])
+                       (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :retried] {:once-key (screens/make-once-key) :keep-alive? false}])
                        (after-ms 40
                                  (fn []
                                    (is (<= 2 (count @once-keys) 3) "sent again while it got no answer")
@@ -389,7 +389,7 @@
                                    (reset! once-keys [])
                                    (reset! heard [])
                                    (reset! offline #{:orders/move})
-                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :gave-up] {:once-key (parlor/make-once-key) :keep-alive? false}])
+                                   (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :gave-up] {:once-key (screens/make-once-key) :keep-alive? false}])
                                    (after-ms 40
                                              (fn []
                                                (is (= 3 (count @once-keys)) "the first try and :times more")
@@ -398,7 +398,7 @@
                                                (reset! heard [])
                                                (reset! offline #{})
                                                (reset! failing #{:orders/move})
-                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :refused] {:once-key (parlor/make-once-key) :keep-alive? false}])
+                                               (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :refused] {:once-key (screens/make-once-key) :keep-alive? false}])
                                                (after-ms 40
                                                          (fn []
                                                            (is (= 1 (count @once-keys)) "a refusal is the server's answer: not sent again")
@@ -410,15 +410,15 @@
         sent                    (atom [])
         _                       (start! send-message! {:send-write! (fn [message options] (swap! sent conj options) (send-message! message))})]
     (testing "no options, a missing key or an unknown one: refused, named"
-      (is (= :parlor/bad-send (:type (thrown-data #(rf/dispatch-sync [:parlor/send [:orders/move {}] nil]))))
+      (is (= :groundwork-screens/bad-send (:type (thrown-data #(rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] nil]))))
           "none: a new key for each send would be a hidden default")
       (is (= {:keep-alive? ["missing required key"]}
-             (:errors (thrown-data #(rf/dispatch-sync [:parlor/send [:orders/move {}] nil {:once-key "k"}])))))
+             (:errors (thrown-data #(rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] nil {:once-key "k"}])))))
       (is (= {:once-key ["should be at least 1 character"] :colour ["disallowed key"]}
-             (:errors (thrown-data #(rf/dispatch-sync [:parlor/send [:orders/move {}] nil {:once-key "" :keep-alive? false :colour 1}])))))
+             (:errors (thrown-data #(rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] nil {:once-key "" :keep-alive? false :colour 1}])))))
       (is (= [] @sent) "nothing sent"))
     (testing "the options go to :send-write! as written"
-      (rf/dispatch-sync [:parlor/send [:orders/move {}] nil {:once-key "k-1" :keep-alive? true}])
+      (rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] nil {:once-key "k-1" :keep-alive? true}])
       (is (= [{:once-key "k-1" :keep-alive? true}] @sent)))))
 
 (deftest a-write-without-notes-asks-again-everything-watched
@@ -426,10 +426,10 @@
          (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"]}
                                                                    (fn [_ n] n))
                _ (start! send-message! {})]
-           (rf/dispatch-sync [:parlor/watch :orders-page [[:orders/all {}] [:shops/all {}]]])
+           (rf/dispatch-sync [:groundwork-screens/watch :orders-page [[:orders/all {}] [:shops/all {}]]])
            (after-ms 20
                      (fn []
-                       (rf/dispatch-sync [:parlor/send [:orders/import {}] nil {:once-key (parlor/make-once-key) :keep-alive? false}])
+                       (rf/dispatch-sync [:groundwork-screens/send [:orders/import {}] nil {:once-key (screens/make-once-key) :keep-alive? false}])
                        (after-ms 30
                                  (fn []
                                    (is (= {:orders/all 2 :shops/all 2 :orders/import 1} @asked))
@@ -444,28 +444,28 @@
                                                    {:scope-kind :shop :scope-id (str other) :actions [:orders/see]}
                                                    {:scope-kind nil :scope-id nil :actions [:profile/edit]}]))
                _ (start! send-message! {:actions-question [:people/actions {}] :actions-answer-shape actions-shape})]
-           (is (false? (sub [:parlor/can-i? :orders/see [:shop shop]])) "no until the answer is there")
+           (is (false? (sub [:groundwork-screens/can-i? :orders/see [:shop shop]])) "no until the answer is there")
            (after-ms 20
                      (fn []
-                       (is (true? (sub [:parlor/can-i? :orders/edit [:shop shop]])))
-                       (is (true? (sub [:parlor/can-i? :orders/edit [:shop (str shop)]])) "an id and its text are one")
-                       (is (false? (sub [:parlor/can-i? :orders/edit [:shop other]])))
-                       (is (false? (sub [:parlor/can-i? :orders/edit [:workshop shop]])) "the kind counts")
-                       (is (true? (sub [:parlor/can-i? :orders/see [[:shop shop] [:shop other]]])) "in every one")
-                       (is (false? (sub [:parlor/can-i? :orders/edit [[:shop shop] [:shop other]]])))
-                       (is (false? (sub [:parlor/can-i? :orders/see []])) "an empty list is no")
-                       (is (true? (sub [:parlor/can-i? :profile/edit [:shop other]])) "nil kind and id: every scope")
-                       (rf/dispatch-sync [:parlor/release :orders-page])
-                       (is (true? (sub [:parlor/can-i? :orders/see [:shop shop]])) "the start's owner keeps it")
+                       (is (true? (sub [:groundwork-screens/can-i? :orders/edit [:shop shop]])))
+                       (is (true? (sub [:groundwork-screens/can-i? :orders/edit [:shop (str shop)]])) "an id and its text are one")
+                       (is (false? (sub [:groundwork-screens/can-i? :orders/edit [:shop other]])))
+                       (is (false? (sub [:groundwork-screens/can-i? :orders/edit [:workshop shop]])) "the kind counts")
+                       (is (true? (sub [:groundwork-screens/can-i? :orders/see [[:shop shop] [:shop other]]])) "in every one")
+                       (is (false? (sub [:groundwork-screens/can-i? :orders/edit [[:shop shop] [:shop other]]])))
+                       (is (false? (sub [:groundwork-screens/can-i? :orders/see []])) "an empty list is no")
+                       (is (true? (sub [:groundwork-screens/can-i? :profile/edit [:shop other]])) "nil kind and id: every scope")
+                       (rf/dispatch-sync [:groundwork-screens/release :orders-page])
+                       (is (true? (sub [:groundwork-screens/can-i? :orders/see [:shop shop]])) "the start's owner keeps it")
                        (is (false? (can-i/can-i? nil :orders/see [:shop shop])) "no answer, no")
-                       (swap! rf-db/app-db assoc-in [:parlor :answers [:people/actions {}] :data] [{:scope-kind :shop :scope-id shop}])
-                       (is (false? (sub [:parlor/can-i? :orders/see [:shop shop]])) "an answer that doesn't fit its shape: no")
+                       (swap! rf-db/app-db assoc-in [:groundwork-screens :answers [:people/actions {}] :data] [{:scope-kind :shop :scope-id shop}])
+                       (is (false? (sub [:groundwork-screens/can-i? :orders/see [:shop shop]])) "an answer that doesn't fit its shape: no")
                        (done))))))
 
 (deftest pages-are-re-frame-data
   (async done
          (let [{:keys [asked send-message!]} (make-stand-in-server {} (fn [_ n] n))
-               store     (doorbell/make-question-store send-message! store-settings)
+               store     (live-updates/make-question-store send-message! store-settings)
                on-page*  (atom nil)
                scrolled  (atom [])
                orders    {:name :orders/page :page {:address "/orders" :title "Orders" :name :orders/page}
@@ -479,11 +479,11 @@
                                                              (is (= {:orders/page [:map [:tab :keyword]] :orders/order nil} query-shapes-of-pages))
                                                              (is (fn? may-leave?))
                                                              (is (= "/de/orders" ((:make-path-in-language languages) "/orders" "de"))
-                                                                 "dictionary's rules, from its settings")
+                                                                 "groundwork-languages's rules, from its settings")
                                                              (is (= "en" (:language-of-page languages)))
                                                              (reset! on-page* #(on-page % :keep)))
                          bridge/scroll-as-told!          (fn [scroll] (swap! scrolled conj scroll))]
-             (rf/dispatch-sync [:parlor/start {:store             store
+             (rf/dispatch-sync [:groundwork-screens/start {:store             store
                                                :send-write!       (fn [message _] (send-message! message))
                                                :retry-writes      {:times 0 :wait-ms 0}
                                                :pages             {:orders/page  {:address "/orders" :title "Orders"}
@@ -494,13 +494,13 @@
                                                                                      [:shops/all {}]])}
                                                :actions-question  nil
                                                :actions-answer-shape nil
-                                               :wire test-wire
+                                               :shaper test-shaper
                                                :on-answer-failed  nil
                                                :on-signed-out     nil
                                                :signed-out-reason nil
                                                :on-move           [:test/heard :moved]
                                                :query-shapes-of-pages {:orders/page [:map [:tab :keyword]] :orders/order nil}
-                                               :languages         {:dictionary       {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil
+                                               :languages         {:settings       {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil
                                                                                       :preview-languages [] :fallback-language "en"
                                                                                       :catalogs-path "i18n"}
                                                                    :language-of-page "en"}
@@ -509,46 +509,46 @@
            (@on-page* orders)
            (after-ms 20
                      (fn []
-                       (is (= orders (sub [:parlor/page])))
+                       (is (= orders (sub [:groundwork-screens/page])))
                        (is (= {:orders/all 1 :shops/all 1} @asked) "the page's questions, asked on arrival")
                        (@on-page* order)
                        (after-ms 20
                                  (fn []
                                    (is (= {:orders/all 1 :shops/all 1 :orders/one 1} @asked)
                                        "what the next page shares is kept, not asked again")
-                                   (is (= {:status :loading} (sub [:parlor/answer [:orders/all {}]])) "the rest let go")
+                                   (is (= {:status :loading} (sub [:groundwork-screens/answer [:orders/all {}]])) "the rest let go")
                                    (@on-page* nil)
                                    (after-ms 20
                                              (fn []
-                                               (is (nil? (sub [:parlor/page])) "an address no page has")
-                                               (is (= {:status :loading} (sub [:parlor/answer [:shops/all {}]])))
+                                               (is (nil? (sub [:groundwork-screens/page])) "an address no page has")
+                                               (is (= {:status :loading} (sub [:groundwork-screens/answer [:shops/all {}]])))
                                                (is (= [[:moved {:from nil :to orders}]
                                                        [:moved {:from orders :to order}]
                                                        [:moved {:from order :to nil}]]
                                                       @heard))
                                                (let [moved (atom nil)]
                                                  (with-redefs [bridge/go-to-page! (fn [& args] (reset! moved (vec args)))]
-                                                   (rf/dispatch-sync [:parlor/go-to :orders/order {:order-id "8"} {:tab :notes} :replace]))
+                                                   (rf/dispatch-sync [:groundwork-screens/go-to :orders/order {:order-id "8"} {:tab :notes} :replace]))
                                                  (is (= [:orders/order {:order-id "8"} {:tab :notes} :replace] @moved) "the way passed on as written"))
                                                (done))))))))))
 
 (defn- start-following!
-  "A started parlor over these pages, following a stand-in address bar:
+  "A started groundwork-screens over these pages, following a stand-in address bar:
    returns (fn [page scroll]), bridge's on-page."
   [send-message! pages questions-of-pages more-settings]
   (reset! rf-db/app-db {})
   (reset! heard [])
   (let [on-page (atom nil)
-        store   (doorbell/make-question-store send-message! store-settings)]
+        store   (live-updates/make-question-store send-message! store-settings)]
     (with-redefs [bridge/start-following-address! (fn [_ options] (reset! on-page (:on-page options)))]
-      (rf/dispatch-sync [:parlor/start (merge {:store                 store
+      (rf/dispatch-sync [:groundwork-screens/start (merge {:store                 store
                                                :send-write!           (fn [message _] (send-message! message))
                                                :retry-writes          {:times 0 :wait-ms 0}
                                                :pages                 pages
                                                :questions-of-pages    questions-of-pages
                                                :actions-question      nil
                                                :actions-answer-shape nil
-                                               :wire test-wire
+                                               :shaper test-shaper
                                                :on-answer-failed      nil
                                                :on-signed-out         nil
                                                :signed-out-reason     nil
@@ -561,10 +561,10 @@
     @on-page))
 
 (defn- arrive! [page scroll]
-  (rf/dispatch-sync [:parlor/-arrived page scroll]))
+  (rf/dispatch-sync [:groundwork-screens/-arrived page scroll]))
 
 (defn- catch-scrolls!
-  "Every scroll parlor makes, into an atom, until (stop)."
+  "Every scroll groundwork-screens makes, into an atom, until (stop)."
   [scrolls]
   (let [scroll-after-drawing! pages/scroll-after-drawing!]
     (set! pages/scroll-after-drawing! #(swap! scrolls conj %))
@@ -589,7 +589,7 @@
                                  (fn []
                                    (is (= {:orders/all 1 :orders/of-stage 2} @asked)
                                        "the page stays; what it still asks is kept, the new filter asked")
-                                   (is (= {:stage :curing} (:query (sub [:parlor/page]))))
+                                   (is (= {:stage :curing} (:query (sub [:groundwork-screens/page]))))
                                    (is (= [:top :keep] @scrolls) "scrolled as bridge told")
                                    (stop)
                                    (done))))))))
@@ -599,7 +599,7 @@
         answers (atom [])]
     (start-following! send-message! {} {} {})
     (is (true? (pages/may-leave? a-move)) "nothing held: leave")
-    (rf/dispatch-sync [:parlor/hold {:ask-with :browser-confirm :text :batches/unsaved :args {:count 3}}])
+    (rf/dispatch-sync [:groundwork-screens/hold {:ask-with :browser-confirm :text :batches/unsaved :args {:count 3}}])
     (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) false)]
       (is (false? (pages/may-leave? a-move)) "held: the person is asked, and says stay"))
     (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) true)]
@@ -607,15 +607,15 @@
     (is (= ["batches/unsaved" "batches/unsaved"] @answers) "without :languages, the key's name")
     (with-redefs [pages/ask-person (fn [_] (throw (js/Error. "not asked")))]
       (is (true? (pages/may-leave? a-move)) "leaving let go: not asked again")
-      (rf/dispatch-sync [:parlor/hold {:ask-with :browser-confirm :text :batches/unsaved :args {}}])
-      (rf/dispatch-sync [:parlor/let-go])
+      (rf/dispatch-sync [:groundwork-screens/hold {:ask-with :browser-confirm :text :batches/unsaved :args {}}])
+      (rf/dispatch-sync [:groundwork-screens/let-go])
       (is (true? (pages/may-leave? a-move)) "saved: let go"))
     (testing "a hold takes how to ask, a text's key and its args, not a ready-made text"
-      (is (= :parlor/bad-hold (:type (thrown-data #(rf/dispatch-sync [:parlor/hold "Leave without saving?"])))))
+      (is (= :groundwork-screens/bad-hold (:type (thrown-data #(rf/dispatch-sync [:groundwork-screens/hold "Leave without saving?"])))))
       (is (= {:args ["missing required key"] :ask-with ["missing required key"]}
-             (:errors (thrown-data #(rf/dispatch-sync [:parlor/hold {:text :batches/unsaved}]))))
+             (:errors (thrown-data #(rf/dispatch-sync [:groundwork-screens/hold {:text :batches/unsaved}]))))
           "how it asks and its args written out, {} for none")
-      (is (= :parlor/bad-hold (:type (thrown-data #(rf/dispatch-sync [:parlor/hold {:ask-with :confirm :text :batches/unsaved :args {}}]))))
+      (is (= :groundwork-screens/bad-hold (:type (thrown-data #(rf/dispatch-sync [:groundwork-screens/hold {:ask-with :confirm :text :batches/unsaved :args {}}]))))
           ":browser-confirm or an event")
       (is (true? (pages/may-leave? a-move)) "nothing held by a refused hold"))))
 
@@ -625,9 +625,9 @@
                finished (atom [])]
            (start-following! send-message! {} {} {})
            (reset! heard [])
-           (rf/dispatch-sync [:parlor/hold {:ask-with [:test/heard :ask-leave] :text :batches/unsaved :args {:count 3}}])
+           (rf/dispatch-sync [:groundwork-screens/hold {:ask-with [:test/heard :ask-leave] :text :batches/unsaved :args {:count 3}}])
            (with-redefs [pages/ask-person (fn [_] (throw (js/Error. "the browser's confirm is not asked")))]
-             (is (false? (pages/may-leave? a-move)) "held back: parlor stays where it is"))
+             (is (false? (pages/may-leave? a-move)) "held back: groundwork-screens stays where it is"))
            (after-ms 10
                      (fn []
                        (is (= [[:ask-leave {:move a-move :text :batches/unsaved :args {:count 3}}]] @heard)
@@ -636,7 +636,7 @@
                          (is (false? (pages/may-leave? a-move))))
                        (testing "Leave: let go, and the move finished as it would have gone"
                          (with-redefs [bridge/finish-move! (fn [move] (swap! finished conj move))]
-                           (rf/dispatch-sync [:parlor/leave-anyway a-move]))
+                           (rf/dispatch-sync [:groundwork-screens/leave-anyway a-move]))
                          (is (= [a-move] @finished))
                          (is (true? (pages/may-leave? a-move)) "let go: not asked again"))
                        (done))))))
@@ -644,18 +644,18 @@
 (deftest the-unsaved-changes-text-is-in-the-language-shown-when-asked
   (async done
          (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
-               fetch    dictionary/fetch-catalog!
+               fetch    languages/fetch-catalog!
                catalogs {"en" {"batches/unsaved" "Leave {count} unsaved batches?"}
                          "de" {"batches/unsaved" "{count} ungespeicherte Chargen verlassen?"}}
                page     (fn [language] {:name :orders/list :page {:address "/orders" :title nil :name :orders/list}
                                         :path-params {} :query {} :query-errors nil :fragment nil :language language})
                asked    (atom [])]
-           (set! dictionary/fetch-catalog! (fn [_ language] (js/Promise.resolve (get catalogs language))))
+           (set! languages/fetch-catalog! (fn [_ language] (js/Promise.resolve (get catalogs language))))
            (start-following! send-message! {:orders/list {:address "/orders" :title nil}} {:orders/list (fn [_] [])}
-                             {:languages {:dictionary {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
+                             {:languages {:settings {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
                                                        :fallback-language "en" :catalogs-path "i18n"}
                                           :language-of-page "en"}})
-           (rf/dispatch-sync [:parlor/hold {:ask-with :browser-confirm :text :batches/unsaved :args {:count 3}}])
+           (rf/dispatch-sync [:groundwork-screens/hold {:ask-with :browser-confirm :text :batches/unsaved :args {:count 3}}])
            (with-redefs [pages/ask-person (fn [message] (swap! asked conj message) false)]
              (pages/may-leave? a-move))
            (after-ms 20
@@ -669,8 +669,8 @@
                                        (pages/may-leave? a-move))
                                      (is (= ["batches/unsaved" "Leave 3 unsaved batches?" "3 ungespeicherte Chargen verlassen?"] @asked)
                                          "the key's name before a catalog is in, then each language's, the same hold")
-                                     (rf/dispatch-sync [:parlor/let-go])
-                                     (set! dictionary/fetch-catalog! fetch)
+                                     (rf/dispatch-sync [:groundwork-screens/let-go])
+                                     (set! languages/fetch-catalog! fetch)
                                      (done)))))))))
 
 (deftest a-page-loads-its-module-on-the-way-in
@@ -708,27 +708,27 @@
   (async done
          (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
                fetched  (atom [])
-               fetch    dictionary/fetch-catalog!
+               fetch    languages/fetch-catalog!
                catalogs {"en" {"orders.cart/add" "Add {count, plural, one {# item} other {# items}}" "orders.cart/title" "Cart"}
                          "de" {"orders.cart/add" "{count} Artikel hinzufügen"}}
                page     (fn [language] {:name :orders/list :page {:address "/orders" :title nil :name :orders/list}
                                         :path-params {} :query {} :query-errors nil :fragment nil :language language})]
-           (set! dictionary/fetch-catalog! (fn [_ language]
+           (set! languages/fetch-catalog! (fn [_ language]
                                              (swap! fetched conj language)
                                              (js/Promise. (fn [resolve _] (js/setTimeout #(resolve (get catalogs language)) 10)))))
            (start-following! send-message! {:orders/list {:address "/orders" :title nil}} {:orders/list (fn [_] [])}
-                             {:languages {:dictionary {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
+                             {:languages {:settings {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
                                                        :fallback-language "en" :catalogs-path "i18n"}
                                           :language-of-page "en"}})
            (is (= ["en"] @fetched) "the page's language, which is the fallback too, fetched once")
            (is (nil? (drawn-tr :orders.cart/add {:count 2})) "nothing before its catalog is in")
-           (is (false? (sub [:parlor/texts-ready?])))
+           (is (false? (sub [:groundwork-screens/texts-ready?])))
            (after-ms 30
                      (fn []
-                       (is (true? (sub [:parlor/texts-ready?])))
+                       (is (true? (sub [:groundwork-screens/texts-ready?])))
                        (is (= "Add 2 items" (drawn-tr :orders.cart/add {:count 2})))
-                       (is (= {:type :parlor/tr-outside-a-view :key :orders.cart/add}
-                              (thrown-data #(parlor/tr :orders.cart/add {:count 2})))
+                       (is (= {:type :groundwork-screens/tr-outside-a-view :key :orders.cart/add}
+                              (thrown-data #(screens/tr :orders.cart/add {:count 2})))
                            "tr outside a view: refused, named")
                        (arrive! (page "de") :keep)
                        (is (= ["en" "de"] @fetched) "a page in another language fetches its catalog")
@@ -741,24 +741,24 @@
                                    (arrive! (page "en") :keep)
                                    (is (= "Add 2 items" (drawn-tr :orders.cart/add {:count 2})) "back at once: it is in")
                                    (is (= ["en" "de"] @fetched))
-                                   (set! dictionary/fetch-catalog! fetch)
+                                   (set! languages/fetch-catalog! fetch)
                                    (done))))))))
 
 (deftest a-view-draws-again-when-the-language-changes
   (async done
          (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
-               fetch    dictionary/fetch-catalog!
+               fetch    languages/fetch-catalog!
                catalogs {"en" {"orders.cart/title" "Cart"} "de" {"orders.cart/title" "Warenkorb"}}
                page     (fn [language] {:name :orders/list :page {:address "/orders" :title nil :name :orders/list}
                                         :path-params {} :query {} :query-errors nil :fragment nil :language language})
                drawn    (atom [])]
-           (set! dictionary/fetch-catalog! (fn [_ language] (js/Promise.resolve (get catalogs language))))
+           (set! languages/fetch-catalog! (fn [_ language] (js/Promise.resolve (get catalogs language))))
            (start-following! send-message! {:orders/list {:address "/orders" :title nil}} {:orders/list (fn [_] [])}
-                             {:languages {:dictionary {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
+                             {:languages {:settings {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
                                                        :fallback-language "en" :catalogs-path "i18n"}
                                           :language-of-page "en"}})
            (rf/clear-subscription-cache!)
-           (let [view (ratom/make-reaction #(swap! drawn conj (parlor/tr :orders.cart/title {})) :auto-run true)]
+           (let [view (ratom/make-reaction #(swap! drawn conj (screens/tr :orders.cart/title {})) :auto-run true)]
              @view
              (after-ms 20
                        (fn []
@@ -770,39 +770,39 @@
                                      (is (= [nil "Cart" "Warenkorb"] (dedupe @drawn))
                                          "nil before the catalog, then each language's, drawn again by itself")
                                      (ratom/dispose! view)
-                                     (set! dictionary/fetch-catalog! fetch)
+                                     (set! languages/fetch-catalog! fetch)
                                      (done)))))))))
 
 (deftest tr-is-only-for-views
   (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))]
     (start! send-message! {})
-    (rf/reg-event-fx :test/text-in-an-event (fn [_ _] {:db {:text (parlor/tr :orders.cart/add {})}}))
-    (is (= :parlor/tr-outside-a-view (:type (thrown-data #(rf/dispatch-sync [:test/text-in-an-event]))))
+    (rf/reg-event-fx :test/text-in-an-event (fn [_ _] {:db {:text (screens/tr :orders.cart/add {})}}))
+    (is (= :groundwork-screens/tr-outside-a-view (:type (thrown-data #(rf/dispatch-sync [:test/text-in-an-event]))))
         "in an event handler")
-    (is (= :parlor/tr-outside-a-view (:type (thrown-data #(parlor/tr :orders.cart/add {}))))
+    (is (= :groundwork-screens/tr-outside-a-view (:type (thrown-data #(screens/tr :orders.cart/add {}))))
         "in plain code")
     (is (= "orders.cart/add" (drawn-tr :orders.cart/add {})) "in a view")))
 
 (deftest without-languages-a-text-is-its-key
   (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))]
     (start! send-message! {})
-    (is (true? (sub [:parlor/texts-ready?])))
+    (is (true? (sub [:groundwork-screens/texts-ready?])))
     (is (= "orders.cart/add" (drawn-tr :orders.cart/add {})))))
 
 (deftest signed-out-is-told-once-with-the-page-to-return-to
   (async done
          (let [{out :signed-out :keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
-               _ (start! send-message! {:on-signed-out [:test/heard :to-login] :signed-out-reason :doorman/signed-out})]
-           (swap! rf-db/app-db assoc-in [:parlor :page] {:name :orders/order :path-params {:order-id "7"} :query {:tab :notes}})
+               _ (start! send-message! {:on-signed-out [:test/heard :to-login] :signed-out-reason :groundwork-access/signed-out})]
+           (swap! rf-db/app-db assoc-in [:groundwork-screens :page] {:name :orders/order :path-params {:order-id "7"} :query {:tab :notes}})
            (reset! out #{:orders/one :shops/all :orders/move})
-           (rf/dispatch-sync [:parlor/watch :order-page [[:orders/one {:order/id "7"}] [:shops/all {}]]])
-           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
+           (rf/dispatch-sync [:groundwork-screens/watch :order-page [[:orders/one {:order/id "7"}] [:shops/all {}]]])
+           (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (screens/make-once-key) :keep-alive? false}])
            (after-ms 40
                      (fn []
                        (is (= [[:to-login {:page :orders/order :params {:order-id "7"} :query {:tab :notes}}]]
                               (filter #(= :to-login (first %)) @heard))
                            "two questions and a write refused signed out: told once, with the page")
-                       (is (= {:status :error :error signed-out} (sub [:parlor/answer [:orders/one {:order/id "7"}]]))
+                       (is (= {:status :error :error signed-out} (sub [:groundwork-screens/answer [:orders/one {:order/id "7"}]]))
                            "the answers stay refusals")
                        (is (= [[:moved {:status :error :error signed-out}]] (filter #(= :moved (first %)) @heard)))
                        (done))))))
@@ -810,12 +810,12 @@
 (deftest signed-out-needs-its-reason
   (reset! rf-db/app-db {})
   (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))]
-    (is (= {:type :parlor/bad-settings :errors {:signed-out-reason ["the :on-signed-out event needs the reason it is dispatched for"]}}
+    (is (= {:type :groundwork-screens/bad-settings :errors {:signed-out-reason ["the :on-signed-out event needs the reason it is dispatched for"]}}
            (thrown-data #(start! send-message! {:on-signed-out [:test/heard :to-login]}))))
-    (is (= {:type :parlor/bad-settings :errors {:signed-out-reason ["no :on-signed-out: nil"]}}
-           (thrown-data #(start! send-message! {:signed-out-reason :doorman/signed-out}))))))
+    (is (= {:type :groundwork-screens/bad-settings :errors {:signed-out-reason ["no :on-signed-out: nil"]}}
+           (thrown-data #(start! send-message! {:signed-out-reason :groundwork-access/signed-out}))))))
 
 (deftest only-no-answer-is-sent-again
-  (is (true? (parlor.answers/is-no-answer? no-answer)))
-  (is (false? (parlor.answers/is-no-answer? not-found)))
-  (is (false? (parlor.answers/is-no-answer? {:moved 1}))))
+  (is (true? (groundwork-screens.answers/is-no-answer? no-answer)))
+  (is (false? (groundwork-screens.answers/is-no-answer? not-found)))
+  (is (false? (groundwork-screens.answers/is-no-answer? {:moved 1}))))

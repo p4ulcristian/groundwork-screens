@@ -1,16 +1,16 @@
-(ns parlor.settings
-  "parlor's start settings, as a malli shape, checked before anything
+(ns groundwork-screens.settings
+  "groundwork-screens's start settings, as a malli shape, checked before anything
    starts. Nothing has a default: every key is written out, nil where
    nothing applies, and a missing or unknown one refuses, named, with every
-   other problem at once (:parlor/bad-settings). They are values the app
+   other problem at once (:groundwork-screens/bad-settings). They are values the app
    hands in, not data crossing an edge, so malli checks them itself."
   (:require
-   [dictionary.api :as dictionary]
+   [groundwork-languages.api :as languages]
    [malli.core :as malli]
    [malli.error :as malli-error]))
 
 (def question-shape
-  "A question, as doorbell keeps it: [name params]."
+  "A question, as groundwork-live-updates keeps it: [name params]."
   [:tuple :qualified-keyword :any])
 
 (def event-shape
@@ -18,18 +18,18 @@
   [:and vector? [:fn {:error/message "should be a re-frame event, [:its/name …]"} #(keyword? (first %))]])
 
 (def start-settings-shape
-  ":parlor/start's settings, every key required.
-   :store: doorbell's question store (doorbell.api/make-question-store);
-   parlor keeps its answers from it.
+  ":groundwork-screens/start's settings, every key required.
+   :store: groundwork-live-updates's question store (groundwork-live-updates.api/make-question-store);
+   groundwork-screens keeps its answers from it.
    :send-write!: (fn [message {:keys [once-key keep-alive?]}]) -> a
-   promise of the answer keyed by name, with :bridge/notes beside it:
-   what :parlor/send sends a write through, with the send's options as
+   promise of the answer keyed by name, with :groundwork-bridge/notes beside it:
+   what :groundwork-screens/send sends a write through, with the send's options as
    the send wrote them out (send-options-shape), the same on each retry
    of that send (groundwork: bridge's send-message! with the key in the
    idempotency-key header and :keep-alive? as it is). bridge's send-message!: a
    promise that doesn't fail for want of an answer; the network, the
-   server down, a page that isn't an answer are its :bridge/no-answer.
-   :retry-writes: {:times n :wait-ms ms}: a send answered :bridge/no-answer
+   server down, a page that isn't an answer are its :groundwork-bridge/no-answer.
+   :retry-writes: {:times n :wait-ms ms}: a send answered :groundwork-bridge/no-answer
    is sent again, with the same key, up to :times more, :wait-ms apart, so
    the server saves it once; {:times 0 …} for never. Any other refusal is
    the server's answer, and isn't sent again.
@@ -40,12 +40,12 @@
    other: (fn [page]) -> questions, page {:name :page :path-params :query};
    (fn [_] []) for a page that needs none.
    :actions-question: the question whose answer says what the person may
-   do, for :parlor/can-i?: the message of doorman's make-my-actions-handler,
-   [:doorman/my-actions {}] in groundwork; nil when the app asks none.
-   :actions-answer-shape: the shape that question's answer fits (doorman's
+   do, for :groundwork-screens/can-i?: the message of groundwork-access's make-my-actions-handler,
+   [:groundwork-access/my-actions {}] in groundwork; nil when the app asks none.
+   :actions-answer-shape: the shape that question's answer fits (groundwork-access's
    my-actions-answer-shape), which \"can I?\" checks it by; nil when
    :actions-question is nil.
-   :wire: the app's wire (wire.api's make-wire-from-settings), which the
+   :shaper: the app's shaper (groundwork-shaped-json.api's make-shaper-from-settings), which the
    answer is checked by: in the browser an id is its text.
    :on-answer-failed: an event, given the question and the failed answer,
    for every answer that failed; nil for none.
@@ -56,15 +56,15 @@
    write's) refused with :signed-out-reason, however many come; nil for
    none.
    :signed-out-reason: the reason a refusal says nobody is signed in by,
-   doorman's :doorman/signed-out in groundwork; nil when :on-signed-out
+   groundwork-access's :groundwork-access/signed-out in groundwork; nil when :on-signed-out
    is nil.
    :on-move: an event, given {:from page :to page}, after every move;
    nil for none.
    :query-shapes-of-pages: every page's query shape, by page name, one for
    each of :pages and no other: a malli map the query's text values are
    read by (bridge's), or nil to keep them text.
-   :languages: nil without languages, or {:dictionary settings
-   :language-of-page \"en\"}: dictionary's settings (the server's, from
+   :languages: nil without languages, or {:settings settings
+   :language-of-page \"en\"}: groundwork-languages's settings (the server's, from
    the page) and the language the page came in; an address's prefix says
    its language, and a move keeps it.
    :load-module!: (fn [module-name]) -> a promise, settled once a module
@@ -75,7 +75,7 @@
    place of the page while its module loads (:loading) or after it failed
    (:failed); nil when no page names a module."
   [:map {:closed true}
-   [:store [:fn {:error/message "should be doorbell's question store, made by doorbell.api/make-question-store"} map?]]
+   [:store [:fn {:error/message "should be groundwork-live-updates's question store, made by groundwork-live-updates.api/make-question-store"} map?]]
    [:send-write! fn?]
    [:retry-writes [:map {:closed true}
                    [:times [:int {:min 0}]]
@@ -84,14 +84,14 @@
    [:questions-of-pages [:map-of :qualified-keyword fn?]]
    [:actions-question [:maybe question-shape]]
    [:actions-answer-shape :any]
-   [:wire [some? {:error/message "should be the app's wire, made by wire.api/make-wire-from-settings"}]]
+   [:shaper [some? {:error/message "should be the app's shaper, made by groundwork-shaped-json.api/make-shaper-from-settings"}]]
    [:on-answer-failed [:maybe event-shape]]
    [:on-signed-out [:maybe event-shape]]
    [:signed-out-reason [:maybe :qualified-keyword]]
    [:on-move [:maybe event-shape]]
    [:query-shapes-of-pages [:map-of :qualified-keyword :any]]
    [:languages [:maybe [:map {:closed true}
-                        [:dictionary dictionary/settings-shape]
+                        [:settings languages/settings-shape]
                         [:language-of-page :string]]]]
    [:load-module! [:maybe fn?]]
    [:placeholder [:maybe fn?]]])
@@ -136,7 +136,7 @@
       (nil? placeholder)  (assoc :placeholder ["a page names a module: say what shows while it loads"]))))
 
 (defn check-start-settings
-  "Returns the settings; throws {:type :parlor/bad-settings :errors …}
+  "Returns the settings; throws {:type :groundwork-screens/bad-settings :errors …}
    with every problem at once when they don't fit, when a page in :pages
    declares no questions or query shape or one is declared for a page
    :pages doesn't have, when only one of :on-signed-out and
@@ -149,15 +149,15 @@
                         (find-signed-out-problems settings) (find-module-problems settings)))]
     (when errors
       (throw (ex-info (str "The settings have problems: " (pr-str errors))
-                      {:type :parlor/bad-settings :errors errors}))))
+                      {:type :groundwork-screens/bad-settings :errors errors}))))
   settings)
 
 (def hold-shape
-  "[:parlor/hold hold]'s hold, every key written out:
+  "[:groundwork-screens/hold hold]'s hold, every key written out:
    :ask-with: how leaving is asked, :browser-confirm (the browser's
    confirm, the text made when it asks), or an event, the app's own
    dialog, dispatched with {:move :text :args} while the move is held
-   back ([:parlor/leave-anyway move] finishes it).
+   back ([:groundwork-screens/leave-anyway move] finishes it).
    :text and :args: a text's key and its args, {} for none, as tr takes
    them: {:text :batches/unsaved :args {:count 3}}."
   [:map {:closed true}
@@ -166,18 +166,18 @@
    [:args [:map-of :keyword :any]]])
 
 (defn check-hold
-  "Returns the hold; throws :parlor/bad-hold with every problem at once (a
+  "Returns the hold; throws :groundwork-screens/bad-hold with every problem at once (a
    ready-made text is one: the key and its args are held, so the text
    follows the language)."
   [hold]
   (when-let [explanation (malli/explain hold-shape hold)]
     (let [errors (malli-error/humanize explanation)]
-      (throw (ex-info (str "[:parlor/hold hold] takes how to ask, a text's key and its args, {:ask-with :browser-confirm :text key :args {}}: " (pr-str errors))
-                      {:type :parlor/bad-hold :errors errors}))))
+      (throw (ex-info (str "[:groundwork-screens/hold hold] takes how to ask, a text's key and its args, {:ask-with :browser-confirm :text key :args {}}: " (pr-str errors))
+                      {:type :groundwork-screens/bad-hold :errors errors}))))
   hold)
 
 (def send-options-shape
-  "[:parlor/send message on-answer options]'s options, every key written
+  "[:groundwork-screens/send message on-answer options]'s options, every key written
    out:
    :once-key: the write's one-time key, text (make-once-key), made by the
    caller: a form makes it when its draft starts, keeps it beside the
@@ -191,12 +191,12 @@
    [:keep-alive? :boolean]])
 
 (defn check-send-options
-  "Returns a send's options; throws :parlor/bad-send with every problem at
+  "Returns a send's options; throws :groundwork-screens/bad-send with every problem at
    once (none written out among them: a new key for each send would be a
    hidden default)."
   [options]
   (when-let [explanation (malli/explain send-options-shape options)]
     (let [errors (malli-error/humanize explanation)]
-      (throw (ex-info (str "[:parlor/send message on-answer options] takes its options written out, {:once-key (parlor/make-once-key) :keep-alive? false}: " (pr-str errors))
-                      {:type :parlor/bad-send :errors errors}))))
+      (throw (ex-info (str "[:groundwork-screens/send message on-answer options] takes its options written out, {:once-key (screens/make-once-key) :keep-alive? false}: " (pr-str errors))
+                      {:type :groundwork-screens/bad-send :errors errors}))))
   options)

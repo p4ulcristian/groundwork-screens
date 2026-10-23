@@ -1,5 +1,5 @@
 {
-  "name": "parlor",
+  "name": "groundwork-screens",
   "private": true,
   "description": "parlor's ClojureScript test build; react and react-dom for Reagent, intl-messageformat for dictionary's texts",
   "scripts": {
