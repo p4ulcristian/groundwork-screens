@@ -17,7 +17,7 @@
 
 (deftest the-event-and-subscription-names
   (is (= #{:parlor/start :parlor/watch :parlor/own :parlor/release :parlor/ask-again
-           :parlor/once-answered :parlor/send :parlor/go-to :parlor/hold :parlor/let-go}
+           :parlor/once-answered :parlor/send :parlor/go-to :parlor/hold :parlor/let-go :parlor/leave-anyway}
          (public-parlor-names :event)))
   (is (= #{:parlor/answer :parlor/can-i? :parlor/page :parlor/texts-ready?}
          (public-parlor-names :sub))))

@@ -96,6 +96,10 @@
 
 (rf/reg-event-db :test/heard (fn [db [_ & more]] (swap! heard conj (vec more)) db))
 
+(def ^:private a-move
+  "A move bridge asks :may-leave? about: a link's."
+  {:address "/orders/7" :way :push :index nil})
+
 (defn- start!
   "A fresh db and a started parlor, following no address; writes go
    through the stand-in's send-message!, unkeyed, unless more-settings
@@ -576,24 +580,48 @@
   (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
         answers (atom [])]
     (start-following! send-message! {} {} {})
-    (is (true? (pages/may-leave?)) "nothing held: leave")
-    (rf/dispatch-sync [:parlor/hold {:text :batches/unsaved :args {:count 3}}])
+    (is (true? (pages/may-leave? a-move)) "nothing held: leave")
+    (rf/dispatch-sync [:parlor/hold {:ask-with :browser-confirm :text :batches/unsaved :args {:count 3}}])
     (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) false)]
-      (is (false? (pages/may-leave?)) "held: the person is asked, and says stay"))
+      (is (false? (pages/may-leave? a-move)) "held: the person is asked, and says stay"))
     (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) true)]
-      (is (true? (pages/may-leave?)) "says leave"))
+      (is (true? (pages/may-leave? a-move)) "says leave"))
     (is (= ["batches/unsaved" "batches/unsaved"] @answers) "without :languages, the key's name")
     (with-redefs [pages/ask-person (fn [_] (throw (js/Error. "not asked")))]
-      (is (true? (pages/may-leave?)) "leaving let go: not asked again")
-      (rf/dispatch-sync [:parlor/hold {:text :batches/unsaved :args {}}])
+      (is (true? (pages/may-leave? a-move)) "leaving let go: not asked again")
+      (rf/dispatch-sync [:parlor/hold {:ask-with :browser-confirm :text :batches/unsaved :args {}}])
       (rf/dispatch-sync [:parlor/let-go])
-      (is (true? (pages/may-leave?)) "saved: let go"))
-    (testing "a hold takes a text's key and its args, not a ready-made text"
+      (is (true? (pages/may-leave? a-move)) "saved: let go"))
+    (testing "a hold takes how to ask, a text's key and its args, not a ready-made text"
       (is (= :parlor/bad-hold (:type (thrown-data #(rf/dispatch-sync [:parlor/hold "Leave without saving?"])))))
-      (is (= {:args ["missing required key"]}
+      (is (= {:args ["missing required key"] :ask-with ["missing required key"]}
              (:errors (thrown-data #(rf/dispatch-sync [:parlor/hold {:text :batches/unsaved}]))))
-          "its args written out, {} for none")
-      (is (true? (pages/may-leave?)) "nothing held by a refused hold"))))
+          "how it asks and its args written out, {} for none")
+      (is (= :parlor/bad-hold (:type (thrown-data #(rf/dispatch-sync [:parlor/hold {:ask-with :confirm :text :batches/unsaved :args {}}]))))
+          ":browser-confirm or an event")
+      (is (true? (pages/may-leave? a-move)) "nothing held by a refused hold"))))
+
+(deftest unsaved-changes-ask-with-the-apps-dialog
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               finished (atom [])]
+           (start-following! send-message! {} {} {})
+           (reset! heard [])
+           (rf/dispatch-sync [:parlor/hold {:ask-with [:test/heard :ask-leave] :text :batches/unsaved :args {:count 3}}])
+           (with-redefs [pages/ask-person (fn [_] (throw (js/Error. "the browser's confirm is not asked")))]
+             (is (false? (pages/may-leave? a-move)) "held back: parlor stays where it is"))
+           (after-ms 10
+                     (fn []
+                       (is (= [[:ask-leave {:move a-move :text :batches/unsaved :args {:count 3}}]] @heard)
+                           "the app's event, with the move and the text's key and args, for its dialog")
+                       (testing "Stay does nothing: still held"
+                         (is (false? (pages/may-leave? a-move))))
+                       (testing "Leave: let go, and the move finished as it would have gone"
+                         (with-redefs [bridge/finish-move! (fn [move] (swap! finished conj move))]
+                           (rf/dispatch-sync [:parlor/leave-anyway a-move]))
+                         (is (= [a-move] @finished))
+                         (is (true? (pages/may-leave? a-move)) "let go: not asked again"))
+                       (done))))))
 
 (deftest the-unsaved-changes-text-is-in-the-language-shown-when-asked
   (async done
@@ -609,18 +637,18 @@
                              {:languages {:dictionary {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
                                                        :fallback-language "en" :catalogs-path "i18n"}
                                           :language-of-page "en"}})
-           (rf/dispatch-sync [:parlor/hold {:text :batches/unsaved :args {:count 3}}])
+           (rf/dispatch-sync [:parlor/hold {:ask-with :browser-confirm :text :batches/unsaved :args {:count 3}}])
            (with-redefs [pages/ask-person (fn [message] (swap! asked conj message) false)]
-             (pages/may-leave?))
+             (pages/may-leave? a-move))
            (after-ms 20
                      (fn []
                        (with-redefs [pages/ask-person (fn [message] (swap! asked conj message) false)]
-                         (pages/may-leave?)
+                         (pages/may-leave? a-move)
                          (arrive! (page "de") :keep)
                          (after-ms 20
                                    (fn []
                                      (with-redefs [pages/ask-person (fn [message] (swap! asked conj message) false)]
-                                       (pages/may-leave?))
+                                       (pages/may-leave? a-move))
                                      (is (= ["batches/unsaved" "Leave 3 unsaved batches?" "3 ungespeicherte Chargen verlassen?"] @asked)
                                          "the key's name before a catalog is in, then each language's, the same hold")
                                      (rf/dispatch-sync [:parlor/let-go])

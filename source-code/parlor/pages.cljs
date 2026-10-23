@@ -16,14 +16,20 @@
    tells: a new page from the top or at its #fragment, a change of only the
    query where it is, Back and Forward where that entry was left.
 
-   Unsaved changes: [:parlor/hold {:text :batches/unsaved :args {:count
-   3}}] while a form is dirty, a text's key and its args, [:parlor/let-go]
-   after saving. While held, moving to another page (a link,
-   :parlor/go-to, Back and Forward) asks the person that text first (the
-   browser's confirm), made when it asks, in the language the texts are
-   shown in then (the key's name while no catalog is in): yes lets go and
-   moves, no stays; closing or reloading the tab asks the browser's own
-   question.
+   Unsaved changes: [:parlor/hold {:ask-with … :text :batches/unsaved
+   :args {:count 3}}] while a form is dirty, how to ask and a text's key
+   and its args, [:parlor/let-go] after saving. While held, moving to
+   another page (a link, :parlor/go-to, Back and Forward) asks first:
+   - :ask-with :browser-confirm: the browser's confirm, the text made when
+     it asks, in the language the texts are shown in then (the key's name
+     while no catalog is in): yes lets go and moves, no stays;
+   - :ask-with an event, the app's own dialog: the move is held back,
+     parlor stays where it is and dispatches the event with {:move :text
+     :args}; the dialog's Leave dispatches [:parlor/leave-anyway move],
+     which lets go and finishes the move as it would have gone (Back and
+     Forward go back for real, adding no history entry); Stay does
+     nothing.
+   Closing or reloading the tab asks the browser's own question.
 
    Loading on demand: a page whose :module (the server's pages) isn't
    loaded yet has it loaded on the way in, by the start's :load-module!
@@ -44,7 +50,7 @@
 ;; Unsaved changes
 
 (defonce ^:private holding
-  ;; the text to ask before leaving, {:text key :args args}, or nil
+  ;; how to ask before leaving and what, {:ask-with :text :args}, or nil
   (atom nil))
 
 (defn- warn-before-closing [^js event]
@@ -69,11 +75,17 @@
   (texts/find-text-or-name (:parlor @rf-db/app-db) text args))
 
 (defn may-leave?
-  "bridge's :may-leave?: yes when nothing is held; else the person is
-   asked the held text, in the language shown now, and yes lets go."
-  []
-  (if-let [held @holding]
-    (boolean (when (ask-person (make-text-of-hold held)) (let-go!) true))
+  "bridge's :may-leave?, asked with the move: yes when nothing is held.
+   Held with :browser-confirm, the person is asked the held text, in the
+   language shown now, and yes lets go. Held with an event, no: the move
+   is held back and the event dispatched with {:move :text :args}, for the
+   app's dialog, whose Leave is [:parlor/leave-anyway move]."
+  [move]
+  (if-let [{:keys [ask-with text args] :as held} @holding]
+    (if (= :browser-confirm ask-with)
+      (boolean (when (ask-person (make-text-of-hold held)) (let-go!) true))
+      (do (rf/dispatch (conj ask-with {:move move :text text :args args}))
+          false))
     true))
 
 (rf/reg-fx :parlor/-hold
@@ -84,6 +96,11 @@
 
 (rf/reg-fx :parlor/-let-go (fn [_] (let-go!)))
 
+(rf/reg-fx :parlor/-leave-anyway
+           (fn [move]
+             (let-go!)
+             (bridge/finish-move! move)))
+
 (rf/reg-event-fx :parlor/hold
                  (fn [_ [_ text]]
                    {:parlor/-hold (settings/check-hold text)}))
@@ -91,6 +108,10 @@
 (rf/reg-event-fx :parlor/let-go
                  (fn [_ _]
                    {:parlor/-let-go nil}))
+
+(rf/reg-event-fx :parlor/leave-anyway
+                 (fn [_ [_ move]]
+                   {:parlor/-leave-anyway move}))
 
 ;; -----------------------------------------------------------------------------
 ;; Following the address bar

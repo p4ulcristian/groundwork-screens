@@ -153,23 +153,28 @@
   settings)
 
 (def hold-shape
-  "[:parlor/hold text]'s text: a text's key and its args, every key
-   written out, {} for no args, as tr takes them:
-   {:text :batches/unsaved :args {:count 3}}."
+  "[:parlor/hold hold]'s hold, every key written out:
+   :ask-with: how leaving is asked, :browser-confirm (the browser's
+   confirm, the text made when it asks), or an event, the app's own
+   dialog, dispatched with {:move :text :args} while the move is held
+   back ([:parlor/leave-anyway move] finishes it).
+   :text and :args: a text's key and its args, {} for none, as tr takes
+   them: {:text :batches/unsaved :args {:count 3}}."
   [:map {:closed true}
+   [:ask-with [:or [:= :browser-confirm] event-shape]]
    [:text :keyword]
    [:args [:map-of :keyword :any]]])
 
 (defn check-hold
-  "Returns the hold's text; throws :parlor/bad-hold with every problem at
-   once (a ready-made text is one: the key and its args are held, so the
-   text follows the language)."
-  [text]
-  (when-let [explanation (malli/explain hold-shape text)]
+  "Returns the hold; throws :parlor/bad-hold with every problem at once (a
+   ready-made text is one: the key and its args are held, so the text
+   follows the language)."
+  [hold]
+  (when-let [explanation (malli/explain hold-shape hold)]
     (let [errors (malli-error/humanize explanation)]
-      (throw (ex-info (str "[:parlor/hold text] takes a text's key and its args, {:text key :args {}}: " (pr-str errors))
+      (throw (ex-info (str "[:parlor/hold hold] takes how to ask, a text's key and its args, {:ask-with :browser-confirm :text key :args {}}: " (pr-str errors))
                       {:type :parlor/bad-hold :errors errors}))))
-  text)
+  hold)
 
 (def send-options-shape
   "[:parlor/send message on-answer options]'s options, every key written
