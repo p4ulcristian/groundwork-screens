@@ -73,9 +73,10 @@
 (defn mount-root!
   "Draws [root] into the page's element with this id, with Reagent, once
    the first catalogs are in (until then the element keeps what the page
-   put in it); call it after :parlor/start, and again after a save in
-   development: it reuses the element's React root and forgets re-frame's
-   cached subscriptions."
+   put in it); call it after :parlor/start (before it, it throws
+   :parlor/mounted-before-start), and again after a save in development:
+   it reuses the element's React root and forgets re-frame's cached
+   subscriptions."
   [element-id root]
   (screen/mount-root! element-id root))
 

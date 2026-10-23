@@ -19,9 +19,14 @@
   "Draws [root] into the element with this id, once the first catalogs
    are in (at once without :languages, or when they are); again with the
    same id, after a save, forgets re-frame's cached subscriptions and
-   draws it anew. Called after :parlor/start. An id the page has no
-   element for throws."
+   draws it anew. Before :parlor/start it throws,
+   :parlor/mounted-before-start: there are no catalogs to wait for yet, and
+   the root would draw with its texts as their keys' names. An id the page
+   has no element for throws, :parlor/no-element."
   [element-id root]
+  (when-not (get-in @rf-db/app-db [:parlor :started])
+    (throw (ex-info (str "mount-root! " element-id " before :parlor/start: dispatch the start first, then mount the root")
+                    {:type :parlor/mounted-before-start :element-id element-id})))
   (let [element (js/document.getElementById element-id)]
     (when-not element
       (throw (ex-info (str "The page has no element with the id " element-id)

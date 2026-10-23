@@ -36,7 +36,7 @@ the app (groundwork) makes them and hands them to the start.
 | `[:parlor/text key args]` (sub) `[:parlor/texts-ready?]` (sub) | a message in the page's language (dictionary's catalogs, fetched by parlor; the fallback's, else the key's name); a swapped catalog draws again; nil until the first is in |
 | `[:parlor/hold message]` `[:parlor/let-go]` | unsaved changes: while held, leaving the page asks the person the message (the browser's confirm), closing the tab the browser's own question |
 | `show-page` | `[parlor/show-page draw-page]`: the page, or the `:placeholder` while the page's `:module` loads (`:load-module!`, on the way in) |
-| `mount-root!` | `[root]` drawn into the element with this id once the first catalogs are in (the element keeps its splash until then); again after a save |
+| `mount-root!` | `[root]` drawn into the element with this id once the first catalogs are in (the element keeps its splash until then); again after a save; before `:parlor/start` it throws, `:parlor/mounted-before-start` |
 
 Nothing asks before `:parlor/start`: watch, own, ask-again, once-answered
 and send throw `:parlor/asked-before-start`, naming the messages.

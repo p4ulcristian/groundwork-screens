@@ -153,6 +153,9 @@
     (let [{:keys [type message-names]} (thrown-data #(rf/dispatch-sync event))]
       (is (= :parlor/asked-before-start type) (str (first event) " throws"))
       (is (= names message-names) "naming the messages")))
+  (is (= {:type :parlor/mounted-before-start :element-id "app"}
+         (thrown-data #(parlor/mount-root! "app" (fn [] [:div]))))
+      "nor is a root drawn: its texts would be their keys' names")
   (testing "release asks nothing, so it doesn't throw"
     (is (nil? (thrown-data #(rf/dispatch-sync [:parlor/release :orders-page]))))))
 
