@@ -33,3 +33,7 @@ Choices made while building, not asked:
 Left for later, outside parlor: the composer reads `[:parlor/text …]` in `test-code/groundwork_test/sample/browser.cljs` (three), `sample/reports.cljs` (one) and `test-code/groundwork/browser/build_check.cljs` (one), and names it in `README.md`; each becomes `(parlor/tr key args)` in its view.
 
 Open, not built: `[:parlor/hold message]` still takes a text, which the view makes with `tr` and an event handler stores until the page is let go (the composer's sample does so); a language switch while it is held keeps the old text. Whether it takes a key and its args instead is the user's to decide.
+
+## Added 2026-10-23: the unsaved-changes guard takes a key
+
+`[:parlor/hold message]` took a ready-made text, which stayed in the old language after a switch. It takes a text's key and arguments instead, and the dialog's view calls `tr`: `[:parlor/hold {:text :batches/unsaved :args {:count 3}}]`. (The user's yes, 2026-10-23; not built yet.)
