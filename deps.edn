@@ -17,11 +17,11 @@
   ;; on its tidy-up branch, not released: a refusal is a named reason, declared on its handler;
   ;; send-message! takes :keep-alive?; go-to-page! takes :push or :replace; :may-leave? is
   ;; asked with the move, and finish-move! finishes one it held back; an sse line tells its break
-  io.github.p4ulcristian/groundwork-bridge {:git/tag "v0.7.8" :git/sha "90dd8fa"}
+  io.github.p4ulcristian/groundwork-bridge {:git/tag "v0.7.9" :git/sha "8967097aa49894c47fbe928fafb7798b25f34a69"}
   ;; the language of an address, and an address made in a language
   ;; on its tidy-up branch, not released: a key names its ICU argument with - read as _;
   ;; the browser's make-text, which tr calls
-  io.github.p4ulcristian/groundwork-languages {:git/tag "v0.4.2" :git/sha "a3aa64d"}
+  io.github.p4ulcristian/groundwork-languages {:git/tag "v0.4.3" :git/sha "75b7b308bbdeb3c480bf32a2c512bf915b2a43c0"}
   ;; "can I?"'s answer checked by its shape, through the app's shaper
   io.github.p4ulcristian/groundwork-shaped-json    {:git/tag "v0.2.1" :git/sha "900a84d"}
   ;; the start's settings checked by their shapes
