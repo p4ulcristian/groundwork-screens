@@ -42,7 +42,7 @@
      @(rf/subscribe [:parlor/texts-ready?])
      @(rf/subscribe [:parlor/page])   ;=> {:name :orders/page :page … :path-params … :query … :language …} or nil
      (rf/dispatch [:parlor/go-to :orders/order {:order-id id} {}])   ; a query, {} for none
-     (rf/dispatch [:parlor/hold \"Leave without saving?\"])         ; asked before leaving the page
+     (rf/dispatch [:parlor/hold {:text :batches/unsaved :args {:count 3}}])  ; asked before leaving, in the language shown then
      (rf/dispatch [:parlor/let-go])
      [parlor/show-page draw-page]     ; the page, or the placeholder while its module loads
 

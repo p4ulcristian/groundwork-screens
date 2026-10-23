@@ -15,11 +15,14 @@
    tells: a new page from the top or at its #fragment, a change of only the
    query where it is, Back and Forward where that entry was left.
 
-   Unsaved changes: [:parlor/hold \"message\"] while a form is dirty,
-   [:parlor/let-go] after saving. While held, moving to another page (a
-   link, :parlor/go-to, Back and Forward) asks the person the message
-   first (the browser's confirm): yes lets go and moves, no stays; closing
-   or reloading the tab asks the browser's own question.
+   Unsaved changes: [:parlor/hold {:text :batches/unsaved :args {:count
+   3}}] while a form is dirty, a text's key and its args, [:parlor/let-go]
+   after saving. While held, moving to another page (a link,
+   :parlor/go-to, Back and Forward) asks the person that text first (the
+   browser's confirm), made when it asks, in the language the texts are
+   shown in then (the key's name while no catalog is in): yes lets go and
+   moves, no stays; closing or reloading the tab asks the browser's own
+   question.
 
    Loading on demand: a page whose :module (the server's pages) isn't
    loaded yet has it loaded on the way in, by the start's :load-module!
@@ -31,14 +34,16 @@
    [bridge.api :as bridge]
    [parlor.answers :as answers]
    [parlor.texts :as texts]
+   [parlor.settings :as settings]
    [re-frame.core :as rf]
+   [re-frame.db :as rf-db]
    [reagent.core :as reagent]))
 
 ;; -----------------------------------------------------------------------------
 ;; Unsaved changes
 
 (defonce ^:private holding
-  ;; the message to ask before leaving, or nil
+  ;; the text to ask before leaving, {:text key :args args}, or nil
   (atom nil))
 
 (defn- warn-before-closing [^js event]
@@ -56,25 +61,31 @@
   (reset! holding nil)
   (when (has-window?) (js/window.removeEventListener "beforeunload" warn-before-closing)))
 
+(defn- make-text-of-hold
+  "The held text, made now in the language the texts are shown in: the
+   browser's confirm is no view, so tr can't make it."
+  [{:keys [text args]}]
+  (texts/find-text-or-name (:parlor @rf-db/app-db) text args))
+
 (defn may-leave?
   "bridge's :may-leave?: yes when nothing is held; else the person is
-   asked the message, and yes lets go."
+   asked the held text, in the language shown now, and yes lets go."
   []
-  (if-let [message @holding]
-    (boolean (when (ask-person message) (let-go!) true))
+  (if-let [held @holding]
+    (boolean (when (ask-person (make-text-of-hold held)) (let-go!) true))
     true))
 
 (rf/reg-fx :parlor/-hold
-           (fn [message]
+           (fn [text]
              (when (and (nil? @holding) (has-window?))
                (js/window.addEventListener "beforeunload" warn-before-closing))
-             (reset! holding message)))
+             (reset! holding text)))
 
 (rf/reg-fx :parlor/-let-go (fn [_] (let-go!)))
 
 (rf/reg-event-fx :parlor/hold
-                 (fn [_ [_ message]]
-                   {:parlor/-hold message}))
+                 (fn [_ [_ text]]
+                   {:parlor/-hold (settings/check-hold text)}))
 
 (rf/reg-event-fx :parlor/let-go
                  (fn [_ _]

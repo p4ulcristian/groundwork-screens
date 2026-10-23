@@ -87,6 +87,14 @@
     text-language               (dictionary/make-text texts text-language message-key args)
     :else                       nil))
 
+(defn find-text-or-name
+  "find-text, or the key's name while no catalog is in: for a text made
+   outside a view, at the moment it is shown (the browser's confirm),
+   which can't wait for a catalog."
+  [parlor message-key args]
+  (or (find-text parlor message-key args)
+      (dictionary/make-text {:fallback-language nil :catalogs {}} nil message-key {})))
+
 (defn are-texts-ready?
   "Whether the first catalogs are in (always, without :languages)."
   [{:keys [text-language started]}]

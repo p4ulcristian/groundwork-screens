@@ -36,4 +36,10 @@ Open, not built: `[:parlor/hold message]` still takes a text, which the view mak
 
 ## Added 2026-10-23: the unsaved-changes guard takes a key
 
-`[:parlor/hold message]` took a ready-made text, which stayed in the old language after a switch. It takes a text's key and arguments instead, and the dialog's view calls `tr`: `[:parlor/hold {:text :batches/unsaved :args {:count 3}}]`. (The user's yes, 2026-10-23; not built yet.)
+`[:parlor/hold message]` took a ready-made text, which stayed in the old language after a switch. It takes a text's key and arguments instead, and the dialog's view calls `tr`: `[:parlor/hold {:text :batches/unsaved :args {:count 3}}]`. (The user's yes, 2026-10-23.) Built on tidy-up, not released.
+
+Settled while building, not asked:
+
+1. **The browser's confirm is no view,** so `tr` can't make its text: parlor makes it when it asks (bridge's `:may-leave?`), with the same lookup `tr`'s subscription reads, in the language the texts are shown in then; while no catalog is in, the key's name. A switch while held asks in the new language.
+2. **The hold's shape is `{:text key :args args}`,** both written out (`{}` for no args), closed; anything else (a ready-made text) is refused, `:parlor/bad-hold`, with every problem at once, and nothing is held.
+3. **parlor takes doorbell at its tidy-up commit** (`a42786b…`): a failed send answers bridge's `:bridge/no-answer`.

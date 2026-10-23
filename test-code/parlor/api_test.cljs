@@ -560,17 +560,55 @@
         answers (atom [])]
     (start-following! send-message! {} {} {})
     (is (true? (pages/may-leave?)) "nothing held: leave")
-    (rf/dispatch-sync [:parlor/hold "Leave without saving?"])
+    (rf/dispatch-sync [:parlor/hold {:text :batches/unsaved :args {:count 3}}])
     (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) false)]
       (is (false? (pages/may-leave?)) "held: the person is asked, and says stay"))
     (with-redefs [pages/ask-person (fn [message] (swap! answers conj message) true)]
       (is (true? (pages/may-leave?)) "says leave"))
-    (is (= ["Leave without saving?" "Leave without saving?"] @answers))
+    (is (= ["batches/unsaved" "batches/unsaved"] @answers) "without :languages, the key's name")
     (with-redefs [pages/ask-person (fn [_] (throw (js/Error. "not asked")))]
       (is (true? (pages/may-leave?)) "leaving let go: not asked again")
-      (rf/dispatch-sync [:parlor/hold "Leave?"])
+      (rf/dispatch-sync [:parlor/hold {:text :batches/unsaved :args {}}])
       (rf/dispatch-sync [:parlor/let-go])
-      (is (true? (pages/may-leave?)) "saved: let go"))))
+      (is (true? (pages/may-leave?)) "saved: let go"))
+    (testing "a hold takes a text's key and its args, not a ready-made text"
+      (is (= :parlor/bad-hold (:type (thrown-data #(rf/dispatch-sync [:parlor/hold "Leave without saving?"])))))
+      (is (= {:args ["missing required key"]}
+             (:errors (thrown-data #(rf/dispatch-sync [:parlor/hold {:text :batches/unsaved}]))))
+          "its args written out, {} for none")
+      (is (true? (pages/may-leave?)) "nothing held by a refused hold"))))
+
+(deftest the-unsaved-changes-text-is-in-the-language-shown-when-asked
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               fetch    dictionary/fetch-catalog!
+               catalogs {"en" {"batches/unsaved" "Leave {count} unsaved batches?"}
+                         "de" {"batches/unsaved" "{count} ungespeicherte Chargen verlassen?"}}
+               page     (fn [language] {:name :orders/list :page {:address "/orders" :title nil :name :orders/list}
+                                        :path-params {} :query {} :query-errors nil :fragment nil :language language})
+               asked    (atom [])]
+           (set! dictionary/fetch-catalog! (fn [_ language] (js/Promise.resolve (get catalogs language))))
+           (start-following! send-message! {:orders/list {:address "/orders" :title nil}} {:orders/list (fn [_] [])}
+                             {:languages {:dictionary {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
+                                                       :fallback-language "en" :catalogs-path "i18n"}
+                                          :language-of-page "en"}})
+           (rf/dispatch-sync [:parlor/hold {:text :batches/unsaved :args {:count 3}}])
+           (with-redefs [pages/ask-person (fn [message] (swap! asked conj message) false)]
+             (pages/may-leave?))
+           (after-ms 20
+                     (fn []
+                       (with-redefs [pages/ask-person (fn [message] (swap! asked conj message) false)]
+                         (pages/may-leave?)
+                         (arrive! (page "de") :keep)
+                         (after-ms 20
+                                   (fn []
+                                     (with-redefs [pages/ask-person (fn [message] (swap! asked conj message) false)]
+                                       (pages/may-leave?))
+                                     (is (= ["batches/unsaved" "Leave 3 unsaved batches?" "3 ungespeicherte Chargen verlassen?"] @asked)
+                                         "the key's name before a catalog is in, then each language's, the same hold")
+                                     (rf/dispatch-sync [:parlor/let-go])
+                                     (set! dictionary/fetch-catalog! fetch)
+                                     (done)))))))))
 
 (deftest a-page-loads-its-module-on-the-way-in
   (async done

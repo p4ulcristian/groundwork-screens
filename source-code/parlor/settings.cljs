@@ -150,3 +150,22 @@
       (throw (ex-info (str "The settings have problems: " (pr-str errors))
                       {:type :parlor/bad-settings :errors errors}))))
   settings)
+
+(def hold-shape
+  "[:parlor/hold text]'s text: a text's key and its args, every key
+   written out, {} for no args, as tr takes them:
+   {:text :batches/unsaved :args {:count 3}}."
+  [:map {:closed true}
+   [:text :keyword]
+   [:args [:map-of :keyword :any]]])
+
+(defn check-hold
+  "Returns the hold's text; throws :parlor/bad-hold with every problem at
+   once (a ready-made text is one: the key and its args are held, so the
+   text follows the language)."
+  [text]
+  (when-let [explanation (malli/explain hold-shape text)]
+    (let [errors (malli-error/humanize explanation)]
+      (throw (ex-info (str "[:parlor/hold text] takes a text's key and its args, {:text key :args {}}: " (pr-str errors))
+                      {:type :parlor/bad-hold :errors errors}))))
+  text)
