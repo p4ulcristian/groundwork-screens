@@ -25,3 +25,4 @@ parlor rebuilds the browser half of Groundwork v0.5.0 (now the groundwork compos
 - [`(parlor/tr key args)` is the text call; the root waits for the first catalogs](2026-10-23-tr-is-the-text-call-and-the-root-waits-for-the-first-catalogs.md), changed in part by [tr is called only in views](2026-10-23-tr-is-called-only-in-views.md)
 - [tr is the one text call in the browser, and it is called only in views](2026-10-23-tr-is-called-only-in-views.md) (built on tidy-up, not released)
 - [Every send writes out its options, its once-key among them](2026-10-23-every-send-writes-out-its-options-its-once-key-among-them.md) (built on tidy-up, not released), changes in part [A write carries a one-time key, kept across its retries](2026-10-23-a-write-carries-a-one-time-key-kept-across-its-retries.md)
+- [A move says whether it adds a history entry or replaces the one shown](2026-10-23-a-move-says-whether-it-adds-a-history-entry.md) (built on tidy-up, not released)

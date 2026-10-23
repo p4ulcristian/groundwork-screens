@@ -506,8 +506,8 @@
                                                       @heard))
                                                (let [moved (atom nil)]
                                                  (with-redefs [bridge/go-to-page! (fn [& args] (reset! moved (vec args)))]
-                                                   (rf/dispatch-sync [:parlor/go-to :orders/order {:order-id "8"} {:tab :notes}]))
-                                                 (is (= [:orders/order {:order-id "8"} {:tab :notes}] @moved)))
+                                                   (rf/dispatch-sync [:parlor/go-to :orders/order {:order-id "8"} {:tab :notes} :replace]))
+                                                 (is (= [:orders/order {:order-id "8"} {:tab :notes} :replace] @moved) "the way passed on as written"))
                                                (done))))))))))
 
 (defn- start-following!

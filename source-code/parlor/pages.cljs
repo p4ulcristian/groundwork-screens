@@ -8,8 +8,9 @@
    the new page declares (its :questions-of-pages; what the next page
    shares is kept, the rest let go, so a change of only the query keeps
    what it still asks); then the app's :on-move event gets {:from :to}.
-   Moving is an event, [:parlor/go-to name path-params query]; a move
-   keeps the language.
+   Moving is an event, [:parlor/go-to name path-params query way], way
+   :push (a history entry, which Back returns from) or :replace (in place
+   of the entry shown), written out; a move keeps the language.
 
    Scrolling: once the page is drawn (Reagent's after-render), as bridge
    tells: a new page from the top or at its #fragment, a change of only the
@@ -111,8 +112,8 @@
                                                        :languages             (make-languages-for-bridge languages)})))
 
 (rf/reg-fx :parlor/-go-to
-           (fn [[page-name path-params query]]
-             (bridge/go-to-page! page-name path-params query)))
+           (fn [[page-name path-params query way]]
+             (bridge/go-to-page! page-name path-params query way)))
 
 (defn scroll-after-drawing!
   "Scrolls as bridge told, once Reagent has drawn the page."
@@ -175,8 +176,8 @@
                    (assoc-in db [:parlor :modules module-name] :failed)))
 
 (rf/reg-event-fx :parlor/go-to
-                 (fn [_ [_ page-name path-params query]]
-                   {:parlor/-go-to [page-name path-params query]}))
+                 (fn [_ [_ page-name path-params query way]]
+                   {:parlor/-go-to [page-name path-params query way]}))
 
 (rf/reg-sub :parlor/page (fn [db _] (get-in db [:parlor :page])))
 

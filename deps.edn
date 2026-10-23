@@ -15,8 +15,8 @@
   ;; the address bar followed into re-frame, and moves to a page; an
   ;; answer told from a refusal (it brings wire, which the app's send-message! carries)
   ;; on its tidy-up branch, not released: a refusal is a named reason, declared on its handler;
-  ;; send-message! takes :keep-alive?
-  io.github.p4ulcristian/bridge {:git/sha "b44c7ff9387742f79cecb61f59036631aa71c72d"}
+  ;; send-message! takes :keep-alive?; go-to-page! takes :push or :replace
+  io.github.p4ulcristian/bridge {:git/sha "8be06b5978d0bf4954b96d6d6cd489de164fe935"}
   ;; the language of an address, and an address made in a language
   ;; on its tidy-up branch, not released: a key names its ICU argument with - read as _;
   ;; the browser's make-text, which tr calls
