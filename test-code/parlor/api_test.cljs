@@ -8,6 +8,7 @@
    [dictionary.api :as dictionary]
    [doorbell.api :as doorbell]
    [bridge.api :as bridge]
+   [parlor.answers]
    [parlor.api :as parlor]
    [parlor.can-i :as can-i]
    [parlor.pages :as pages]
@@ -24,30 +25,44 @@
 
 (def ^:private store-settings {:gather-changes-ms 10 :keep-unwatched-answers-ms 1000})
 
+(def ^:private not-found
+  "A refusal as bridge's send-message! gives it."
+  {:bridge/refused :shop/gone :bridge/data nil :bridge/request-id "r-1"})
+
+(def ^:private no-answer
+  "bridge's send-message! when no answer came."
+  {:bridge/refused :bridge/no-answer :bridge/data {:http-status nil}})
+
+(def ^:private signed-out
+  {:bridge/refused :doorman/signed-out :bridge/data nil :bridge/request-id "r-2"})
+
 (defn- make-stand-in-server
   "A send-message! counting asks by name and answering (answer-of name n),
    noting the tables tables-by-name says the name reads; a name in the
-   failing atom is answered {:error \"Not found.\"}, one in the offline
-   atom gets no answer."
+   failing atom is refused (not-found), one in the signed-out atom
+   refused signed-out, one in the offline atom gets no answer, as bridge's
+   send-message! says it: :bridge/no-answer."
   [tables-by-name answer-of]
   (let [asked     (atom {})
         failing   (atom #{})
         offline   (atom #{})
+        out       (atom #{})
         once-keys (atom [])
         send!     (fn [message]
                     (let [[message-name] (first message)
                           n              (get (swap! asked update message-name (fnil inc 0)) message-name)]
                       (if (contains? @offline message-name)
-                        (js/Promise.reject (js/Error. "offline"))
+                        (js/Promise.resolve {message-name no-answer})
                         (js/Promise.resolve
-                         (cond-> {message-name (if (contains? @failing message-name)
-                                                 {:error "Not found."}
-                                                 (answer-of message-name n))}
+                         (cond-> {message-name (cond (contains? @failing message-name) not-found
+                                                     (contains? @out message-name)     signed-out
+                                                     :else                             (answer-of message-name n))}
                            (contains? tables-by-name message-name)
                            (assoc :bridge/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
     {:asked         asked
      :failing       failing
      :offline       offline
+     :signed-out    out
      :once-keys     once-keys
      :send-message! send!
      :send-write!   (fn [message once-key]
@@ -90,6 +105,8 @@
                                                :actions-answer-shape nil
                                                :wire test-wire
                                                :on-answer-failed  nil
+                                               :on-signed-out     nil
+                                               :signed-out-reason nil
                                                :on-move           nil
                                                :query-shapes-of-pages {}
                                                :languages         nil
@@ -106,7 +123,7 @@
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:pages {} :colour "red"}]))]
     (is (= :parlor/bad-settings type))
     (is (= #{:store :send-write! :retry-writes :questions-of-pages :actions-question :actions-answer-shape :wire
-             :on-answer-failed :on-move :query-shapes-of-pages :languages :load-module! :placeholder :colour}
+             :on-answer-failed :on-signed-out :signed-out-reason :on-move :query-shapes-of-pages :languages :load-module! :placeholder :colour}
            (set (keys errors)))
         "every missing key and the unknown one, at once"))
   (let [{:keys [type errors]} (thrown-data #(rf/dispatch-sync [:parlor/start {:store              {}
@@ -118,6 +135,8 @@
                                                                               :actions-answer-shape nil
                                                                               :wire test-wire
                                                                               :on-answer-failed   nil
+                                                                              :on-signed-out      nil
+                                                                              :signed-out-reason  nil
                                                                               :on-move            nil
                                                                               :query-shapes-of-pages {:orders/page nil}
                                                                               :languages          nil
@@ -135,6 +154,8 @@
                                                                          :actions-answer-shape nil
                                                                          :wire test-wire
                                                                          :on-answer-failed   nil
+                                                                         :on-signed-out      nil
+                                                                         :signed-out-reason  nil
                                                                          :on-move            nil
                                                                          :query-shapes-of-pages {}
                                                                          :languages          nil
@@ -173,10 +194,10 @@
                        (rf/dispatch-sync [:parlor/ask-again q])
                        (after-ms 20
                                  (fn []
-                                   (is (= {:status :refresh-error :data [1] :error {:error "Not found."}}
+                                   (is (= {:status :refresh-error :data [1] :error not-found}
                                           (sub [:parlor/answer q]))
                                        "a failed refresh keeps the good data")
-                                   (is (= [[:failed q {:error "Not found."}]] @heard) "the app hears of it")
+                                   (is (= [[:failed q not-found]] @heard) "the app hears of it")
                                    (swap! failing disj :orders/all)
                                    (rf/dispatch-sync [:parlor/ask-again q])
                                    (after-ms 20
@@ -194,7 +215,7 @@
            (rf/dispatch-sync [:parlor/watch :order-panel [q]])
            (after-ms 20
                      (fn []
-                       (is (= {:status :error :error {:error "Not found."}} (sub [:parlor/answer q])))
+                       (is (= {:status :error :error not-found} (sub [:parlor/answer q])))
                        (swap! failing disj :orders/one)
                        (rf/dispatch-sync [:parlor/ask-again q])
                        (is (= {:status :loading} (sub [:parlor/answer q])) "loading, not the old error")
@@ -297,7 +318,7 @@
                                    (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved]])
                                    (after-ms 40
                                              (fn []
-                                               (is (= [[:moved {:status :error :error {:error "Not found."}}]] @heard))
+                                               (is (= [[:moved {:status :error :error not-found}]] @heard))
                                                (is (= 2 (:orders/all @asked)) "a failed write asks nothing again")
                                                (reset! heard [])
                                                (reset! offline #{:orders/move})
@@ -305,13 +326,13 @@
                                                (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved]])
                                                (after-ms 40
                                                          (fn []
-                                                           (is (= [[:moved {:status :error :error {:error "No answer from the server."}}]] @heard)
+                                                           (is (= [[:moved {:status :error :error no-answer}]] @heard)
                                                                "no answer is an error; nil means no event")
                                                            (done))))))))))))
 
 (deftest a-write-carries-a-one-time-key-kept-across-its-retries
   (async done
-         (let [{:keys [offline once-keys send-message! send-write!]}
+         (let [{:keys [offline failing once-keys send-message! send-write!]}
                (make-stand-in-server {:orders/move ["orders"]} (fn [_ n] {:moved n}))
                _ (start! send-message! {:send-write! send-write! :retry-writes {:times 2 :wait-ms 5}})]
            (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :first]])
@@ -340,8 +361,17 @@
                                    (after-ms 40
                                              (fn []
                                                (is (= 3 (count @once-keys)) "the first try and :times more")
-                                               (is (= [[:gave-up {:status :error :error {:error "No answer from the server."}}]] @heard))
-                                               (done))))))))))
+                                               (is (= [[:gave-up {:status :error :error no-answer}]] @heard))
+                                               (reset! once-keys [])
+                                               (reset! heard [])
+                                               (reset! offline #{})
+                                               (reset! failing #{:orders/move})
+                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :refused]])
+                                               (after-ms 40
+                                                         (fn []
+                                                           (is (= 1 (count @once-keys)) "a refusal is the server's answer: not sent again")
+                                                           (is (= [[:refused {:status :error :error not-found}]] @heard))
+                                                           (done))))))))))))
 
 (deftest a-write-without-notes-asks-again-everything-watched
   (async done
@@ -418,6 +448,8 @@
                                                :actions-answer-shape nil
                                                :wire test-wire
                                                :on-answer-failed  nil
+                                               :on-signed-out     nil
+                                               :signed-out-reason nil
                                                :on-move           [:test/heard :moved]
                                                :query-shapes-of-pages {:orders/page [:map [:tab :keyword]] :orders/order nil}
                                                :languages         {:dictionary       {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil
@@ -470,6 +502,8 @@
                                                :actions-answer-shape nil
                                                :wire test-wire
                                                :on-answer-failed      nil
+                                               :on-signed-out         nil
+                                               :signed-out-reason     nil
                                                :on-move               nil
                                                :query-shapes-of-pages (update-vals pages (constantly nil))
                                                :languages             nil
@@ -604,3 +638,34 @@
     (start! send-message! {})
     (is (true? (sub [:parlor/texts-ready?])))
     (is (= "orders.cart/add" (sub [:parlor/text :orders.cart/add {}])))))
+
+(deftest signed-out-is-told-once-with-the-page-to-return-to
+  (async done
+         (let [{out :signed-out :keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _ (start! send-message! {:on-signed-out [:test/heard :to-login] :signed-out-reason :doorman/signed-out})]
+           (swap! rf-db/app-db assoc-in [:parlor :page] {:name :orders/order :path-params {:order-id "7"} :query {:tab :notes}})
+           (reset! out #{:orders/one :shops/all :orders/move})
+           (rf/dispatch-sync [:parlor/watch :order-page [[:orders/one {:order/id "7"}] [:shops/all {}]]])
+           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved]])
+           (after-ms 40
+                     (fn []
+                       (is (= [[:to-login {:page :orders/order :params {:order-id "7"} :query {:tab :notes}}]]
+                              (filter #(= :to-login (first %)) @heard))
+                           "two questions and a write refused signed out: told once, with the page")
+                       (is (= {:status :error :error signed-out} (sub [:parlor/answer [:orders/one {:order/id "7"}]]))
+                           "the answers stay refusals")
+                       (is (= [[:moved {:status :error :error signed-out}]] (filter #(= :moved (first %)) @heard)))
+                       (done))))))
+
+(deftest signed-out-needs-its-reason
+  (reset! rf-db/app-db {})
+  (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))]
+    (is (= {:type :parlor/bad-settings :errors {:signed-out-reason ["the :on-signed-out event needs the reason it is dispatched for"]}}
+           (thrown-data #(start! send-message! {:on-signed-out [:test/heard :to-login]}))))
+    (is (= {:type :parlor/bad-settings :errors {:signed-out-reason ["no :on-signed-out: nil"]}}
+           (thrown-data #(start! send-message! {:signed-out-reason :doorman/signed-out}))))))
+
+(deftest only-no-answer-is-sent-again
+  (is (true? (parlor.answers/is-no-answer? no-answer)))
+  (is (false? (parlor.answers/is-no-answer? not-found)))
+  (is (false? (parlor.answers/is-no-answer? {:moved 1}))))

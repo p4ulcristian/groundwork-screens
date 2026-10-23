@@ -20,12 +20,19 @@
      nothing.
    - :parlor/send sends a message that changes data, through the start's
      :send-write!, with a one-time key made for this send (a random id):
-     a send that gets no answer is sent again with the same key, the
-     start's :retry-writes, and the server saves it once. Its event gets
-     {:status :ready :data answer} or {:status :error :error answer}. A
-     good answer asks again, through doorbell, every watched question that
-     read a table the write's notes name, as a change heard on the sse line
-     does; doorbell's ring for the same change comes too.
+     a send answered :bridge/no-answer (bridge's: no answer came) is sent
+     again with the same key, the start's :retry-writes, and the server
+     saves it once; any other refusal is the server's answer. Its event
+     gets {:status :ready :data answer} or {:status :error :error answer},
+     the refusal as bridge gives it, {:bridge/refused … :bridge/data …
+     :bridge/request-id …}. A good answer asks again, through doorbell,
+     every watched question that read a table the write's notes name, as a
+     change heard on the sse line does; doorbell's ring for the same change
+     comes too.
+   - A question's or a write's answer refused with the start's
+     :signed-out-reason dispatches its :on-signed-out once per start, with
+     the page the person was on, {:page :params :query}: the first such
+     answer does, however many come at once.
    - Nothing asks before :parlor/start: watch, own, ask-again,
      once-answered and send throw, naming the messages."
   (:require
@@ -34,18 +41,43 @@
    [bridge.api :as bridge]
    [re-frame.core :as rf]))
 
-(def no-answer
-  "What a message that got no answer (the network, the server down) is
-   answered: doorbell's words for the same."
-  {:error "No answer from the server."})
-
 (defn failed?
-  "Whether an answer is a failure rather than data: bridge's error
-   answers (bridge's is-error-answer?: {:error …} or {:errors …} and
-   nothing else, or an answer carrying :bridge/errors), doorbell's
-   no-answer among them."
+  "Whether an answer is a refusal rather than data: bridge's
+   is-error-answer?, a map carrying :bridge/refused (the server's reasons,
+   and bridge's own in the browser: :bridge/no-answer, :bridge/unfit)."
   [answer]
   (bridge/is-error-answer? answer))
+
+(defn is-no-answer?
+  "Whether an answer is bridge's :bridge/no-answer: no answer came, so a
+   write may be sent again."
+  [answer]
+  (= :bridge/no-answer (:bridge/refused answer)))
+
+(defn is-signed-out?
+  "Whether an answer is refused with the start's :signed-out-reason (nil:
+   never)."
+  [answer signed-out-reason]
+  (and (some? signed-out-reason) (failed? answer) (= signed-out-reason (:bridge/refused answer))))
+
+(defn find-page-to-return-to
+  "The page the person is on, for :on-signed-out: {:page name :params
+   path-params :query query}, {:page nil :params {} :query {}} on an
+   address no page has."
+  [page]
+  {:page   (:name page)
+   :params (or (:path-params page) {})
+   :query  (or (:query page) {})})
+
+(defn tell-signed-out
+  "[parlor events]: the start's :on-signed-out with the page, the first
+   time this start; nothing after."
+  [parlor]
+  (let [{:keys [on-signed-out]} (:started parlor)]
+    (if (or (nil? on-signed-out) (:told-signed-out? parlor))
+      [parlor []]
+      [(assoc parlor :told-signed-out? true)
+       [(conj on-signed-out (find-page-to-return-to (:page parlor)))]])))
 
 ;; -----------------------------------------------------------------------------
 ;; The rules, as plain functions over parlor's part of the db
@@ -216,29 +248,39 @@
   (str (random-uuid)))
 
 (defn send-with-retries
-  "(send-write! message once-key), and again with the same key while it
-   gets no answer (its promise fails), up to times more, wait-ms apart. A
-   promise of the first answer, or failed after the last try."
+  "(send-write! message once-key), and again with the same key while the
+   message's name is answered :bridge/no-answer, up to times more, wait-ms
+   apart. A promise of the last answer. A promise send-write! fails is
+   passed on as it is: bridge's send-message! fails none for want of an
+   answer, so it is a bug, not a refusal."
   [send-write! message once-key {:keys [times wait-ms] :as retry-writes}]
-  (-> (send-write! message once-key)
-      (.catch (fn [error]
-                (if (pos? times)
-                  (-> (js/Promise. (fn [resolve _] (js/setTimeout resolve wait-ms)))
-                      (.then #(send-with-retries send-write! message once-key (assoc retry-writes :times (dec times)))))
-                  (js/Promise.reject error))))))
+  (let [message-name (key (first message))]
+    (-> (send-write! message once-key)
+        (.then (fn [answer]
+                 (if (and (pos? times) (is-no-answer? (get answer message-name)))
+                   (-> (js/Promise. (fn [resolve _] (js/setTimeout resolve wait-ms)))
+                       (.then #(send-with-retries send-write! message once-key (assoc retry-writes :times (dec times)))))
+                   answer))))))
 
 (rf/reg-fx :parlor/-send
            (fn [{:keys [started message-name params on-answer]}]
              (-> (send-with-retries (:send-write! started) {message-name params} (make-once-key) (:retry-writes started))
-                 (.then (fn [answer] answer) (fn [_] {message-name no-answer}))
                  (.then (fn [answer]
                           (let [data (get answer message-name)]
                             (when-not (failed? data)
                               (ask-again-what-changed! started answer message-name))
+                            (when (is-signed-out? data (:signed-out-reason started))
+                              (rf/dispatch [:parlor/-signed-out]))
                             (when on-answer
                               (rf/dispatch (conj on-answer (if (failed? data)
                                                              {:status :error :error data}
                                                              {:status :ready :data data}))))))))))
+
+(rf/reg-event-fx :parlor/-signed-out
+                 (fn [{:keys [db]} _]
+                   (let [[parlor events] (tell-signed-out (parlor-of db))]
+                     {:db (assoc db :parlor parlor)
+                      :fx (mapv (fn [event] [:dispatch event]) events)})))
 
 (defn- watching-effects [started to-watch to-unwatch]
   (cond-> []
@@ -273,12 +315,15 @@
 
 (rf/reg-event-fx :parlor/-answered
                  (fn [{:keys [db]} [_ question answer]]
-                   (let [parlor        (parlor-of db)
-                         held?         (contains? (:answers parlor) question)
-                         [parlor tell] (take-answer parlor question answer)
-                         failed-event  (get-in parlor [:started :on-answer-failed])]
+                   (let [parlor          (parlor-of db)
+                         held?           (contains? (:answers parlor) question)
+                         [parlor tell]   (take-answer parlor question answer)
+                         failed-event    (get-in parlor [:started :on-answer-failed])
+                         [parlor signed] (if (and held? (is-signed-out? answer (get-in parlor [:started :signed-out-reason])))
+                                           (tell-signed-out parlor)
+                                           [parlor []])]
                      {:db (assoc db :parlor parlor)
-                      :fx (cond-> (mapv (fn [event] [:dispatch event]) tell)
+                      :fx (cond-> (mapv (fn [event] [:dispatch event]) (into tell signed))
                             (and held? (failed? answer) failed-event)
                             (conj [:dispatch (conj failed-event question answer)]))})))
 

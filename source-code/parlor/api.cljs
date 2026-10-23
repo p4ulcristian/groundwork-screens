@@ -14,6 +14,8 @@
                                        :actions-answer-shape doorman/my-actions-answer-shape   ; its answer's, or nil
                                        :wire               wire                   ; the app's, which the answer is checked by
                                        :on-answer-failed   [:app/answer-failed]   ; or nil
+                                       :on-signed-out      [:app/to-login]        ; gets {:page :params :query}, once; or nil
+                                       :signed-out-reason  :doorman/signed-out    ; the reason it hears; nil with no :on-signed-out
                                        :on-move            nil                    ; or an event
                                        :query-shapes-of-pages {:orders/page [:map [:tab {:optional true} :keyword]]}  ; nil: text
                                        :languages          nil                    ; or {:dictionary settings :language-of-page \"en\"}
@@ -25,8 +27,10 @@
      (rf/dispatch [:parlor/own :order-panel [[:orders/one {:order/id id}]]])    ; exactly these
      (rf/dispatch [:parlor/release :order-panel])
      @(rf/subscribe [:parlor/answer [:orders/one {:order/id id}]])
-     ;=> {:status :loading}, {:status :ready :data …}, {:status :error :error …},
-     ;   {:status :refresh-error :data old :error …}
+     ;=> {:status :loading}, {:status :ready :data …}, {:status :error :error refusal},
+     ;   {:status :refresh-error :data old :error refusal}
+     ;   a refusal as bridge gives it: {:bridge/refused :order/already-shipped :bridge/data {…} :bridge/request-id \"…\"}
+     (parlor/tr (:bridge/refused refusal) (:bridge/data refusal))   ; its text: the reason is the key, its data the args
      (rf/dispatch [:parlor/ask-again [:orders/one {:order/id id}]])
      (rf/dispatch [:parlor/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
      (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]])
@@ -59,8 +63,10 @@
 
 (def start-settings-shape
   ":parlor/start's settings, every key required: :store :send-write!
-   :retry-writes :pages :questions-of-pages :actions-question :on-answer-failed :on-move
-   (see parlor.settings)."
+   :retry-writes :pages :questions-of-pages :actions-question :actions-answer-shape
+   :wire :on-answer-failed :on-signed-out :signed-out-reason :on-move
+   :query-shapes-of-pages :languages :load-module! :placeholder (see
+   parlor.settings)."
   settings/start-settings-shape)
 
 (defn show-page

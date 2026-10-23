@@ -26,10 +26,11 @@ the app (groundwork) makes them and hands them to the start.
 |---|---|
 | `[:parlor/start settings]` | once; every setting required (`start-settings-shape`), checked first; follows the address bar |
 | `[:parlor/watch owner questions]` `[:parlor/own owner questions]` `[:parlor/release owner]` | an owner holds questions: adds them, exactly these (shared ones kept), none |
-| `[:parlor/answer question]` (sub) | `{:status :loading}`, `:ready` with `:data`, `:error` with `:error`, `:refresh-error` with the old `:data` and the `:error` |
+| `[:parlor/answer question]` (sub) | `{:status :loading}`, `:ready` with `:data`, `:error` with `:error`, `:refresh-error` with the old `:data` and the `:error`; an `:error` is bridge's refusal, `{:bridge/refused reason :bridge/data … :bridge/request-id …}`, its text `(parlor/tr reason data)` |
 | `[:parlor/ask-again question]` | a held question asked again now |
 | `[:parlor/once-answered question event]` | `event` gets the data once: now, or, while a fresher answer is on its way (doorbell's `is-question-being-asked?`) or none is there, with the next good answer |
-| `[:parlor/send [name params] event]` | a write, through `:send-write!` with a one-time key made for this send, sent again with the same key while it gets no answer (`:retry-writes`); `event` gets `{:status :ready :data …}` or `{:status :error :error …}`; a good answer asks again what its notes name |
+| `[:parlor/send [name params] event]` | a write, through `:send-write!` with a one-time key made for this send, sent again with the same key while it is answered `:bridge/no-answer` (`:retry-writes`), never for another refusal; `event` gets `{:status :ready :data …}` or `{:status :error :error refusal}`; a good answer asks again what its notes name |
+| `:on-signed-out` (a start setting) | the first answer (a question's or a write's) refused with `:signed-out-reason` dispatches it once per start, with the page to return to after signing in: `[:app/to-login {:page :orders/page :params {…} :query {…}}]` |
 | `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer, checked by `:actions-answer-shape` (doorman's `my-actions-answer-shape`) through the app's `:wire`; `scope` is `[kind id]` or a list of them |
 | `[:parlor/page]` (sub) `[:parlor/go-to name path-params query]` | the page, `{:name :page :path-params :query :query-errors :fragment :language}` or nil; a move, keeping the language. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them; a change of only the query keeps what it still asks, and the scroll. Each move scrolls once drawn: top, the `#fragment`, or where Back left it |
 | `tr` | `(parlor/tr :orders.cart/add {:count 3})`: a message in the page's language; in a screen it is `[:parlor/text …]`, elsewhere it reads the db as it is |
@@ -50,7 +51,7 @@ and send throw `:parlor/asked-before-start`, naming the messages.
 ;; the start (groundwork's), with what it made
 (rf/dispatch-sync [:parlor/start {:store              store            ; doorbell/make-question-store
                                   :send-write!        send-write!      ; (fn [message once-key]): a write and its one-time key
-                                  :retry-writes       {:times 2 :wait-ms 1000}   ; no answer: sent again, same key
+                                  :retry-writes       {:times 2 :wait-ms 1000}   ; :bridge/no-answer: sent again, same key
                                   :pages              pages            ; the server's, from the page
                                   :questions-of-pages {:orders/page (fn [{:keys [path-params]}]   ; one for every page
                                                                       [[:orders/of-shop {:shop/id (parse-uuid (:shop-id path-params))}]])
@@ -59,6 +60,8 @@ and send throw `:parlor/asked-before-start`, naming the messages.
                                   :actions-answer-shape doorman/my-actions-answer-shape   ; nil with no question
                                   :wire               wire               ; the app's
                                   :on-answer-failed   [:shop/answer-failed]  ; nil for none
+                                  :on-signed-out      [:shop/to-login]   ; once, with {:page :params :query}; nil for none
+                                  :signed-out-reason  :doorman/signed-out   ; the reason it hears; nil with no :on-signed-out
                                   :on-move            nil
                                   :query-shapes-of-pages {:orders/page nil :about/page nil}   ; a malli map reads the query into types
                                   :languages          nil                ; or {:dictionary settings :language-of-page "en"}
@@ -70,7 +73,7 @@ and send throw `:parlor/asked-before-start`, naming the messages.
         can-move?                   @(rf/subscribe [:parlor/can-i? :orders/move [:shop shop-id]])]
     (case status
       :loading [:p "Loading orders…"]
-      :error   [:p (:error error) [:button {:on-click #(rf/dispatch [:parlor/ask-again [:orders/of-shop {:shop/id shop-id}]])} "Try again"]]
+      :error   [:p (parlor/tr (:bridge/refused error) (:bridge/data error)) [:button {:on-click #(rf/dispatch [:parlor/ask-again [:orders/of-shop {:shop/id shop-id}]])} "Try again"]]
       [:<>
        (when (= :refresh-error status) [:p.stale "Couldn't refresh; showing the last orders."])
        (into [:ul]

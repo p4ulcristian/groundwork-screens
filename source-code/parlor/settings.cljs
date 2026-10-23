@@ -25,11 +25,13 @@
    by name, with :bridge/notes beside it: what :parlor/send sends a
    write through, with its one-time key, a fresh random id per send, the
    same on each retry of that send (groundwork: the store's send function with
-   the key in the idempotency-key header). A promise that fails means no
-   answer: the network, the server down, a page that isn't an answer.
-   :retry-writes: {:times n :wait-ms ms}: a send that got no answer is sent
-   again, with the same key, up to :times more, :wait-ms apart, so the
-   server saves it once; {:times 0 …} for never.
+   the key in the idempotency-key header). bridge's send-message!: a
+   promise that doesn't fail for want of an answer; the network, the
+   server down, a page that isn't an answer are its :bridge/no-answer.
+   :retry-writes: {:times n :wait-ms ms}: a send answered :bridge/no-answer
+   is sent again, with the same key, up to :times more, :wait-ms apart, so
+   the server saves it once; {:times 0 …} for never. Any other refusal is
+   the server's answer, and isn't sent again.
    :pages: the pages the server put in the page, for bridge's
    start-following-address!.
    :questions-of-pages: every page's declaration of the questions it
@@ -46,6 +48,15 @@
    answer is checked by: in the browser an id is its text.
    :on-answer-failed: an event, given the question and the failed answer,
    for every answer that failed; nil for none.
+   :on-signed-out: an event, given the page the person was on, {:page
+   name :params path-params :query query} ({:page nil :params {} :query
+   {}} on an address no page has), so that after signing in they land
+   there: dispatched once per start, at the first answer (a question's or a
+   write's) refused with :signed-out-reason, however many come; nil for
+   none.
+   :signed-out-reason: the reason a refusal says nobody is signed in by,
+   doorman's :doorman/signed-out in groundwork; nil when :on-signed-out
+   is nil.
    :on-move: an event, given {:from page :to page}, after every move;
    nil for none.
    :query-shapes-of-pages: every page's query shape, by page name, one for
@@ -74,6 +85,8 @@
    [:actions-answer-shape :any]
    [:wire [some? {:error/message "should be the app's wire, made by wire.api/make-wire-from-settings"}]]
    [:on-answer-failed [:maybe event-shape]]
+   [:on-signed-out [:maybe event-shape]]
+   [:signed-out-reason [:maybe :qualified-keyword]]
    [:on-move [:maybe event-shape]]
    [:query-shapes-of-pages [:map-of :qualified-keyword :any]]
    [:languages [:maybe [:map {:closed true}
@@ -105,6 +118,14 @@
                               "the :actions-question's answer needs its shape"
                               "no :actions-question: nil")]}))
 
+(defn- find-signed-out-problems
+  "An :on-signed-out needs the reason it hears, and none needs none."
+  [{:keys [on-signed-out signed-out-reason]}]
+  (when (not= (nil? on-signed-out) (nil? signed-out-reason))
+    {:signed-out-reason [(if on-signed-out
+                           "the :on-signed-out event needs the reason it is dispatched for"
+                           "no :on-signed-out: nil")]}))
+
 (defn- find-module-problems
   "A page that names a module needs :load-module! and :placeholder."
   [{:keys [pages load-module! placeholder]}]
@@ -117,12 +138,14 @@
   "Returns the settings; throws {:type :parlor/bad-settings :errors …}
    with every problem at once when they don't fit, when a page in :pages
    declares no questions or query shape or one is declared for a page
-   :pages doesn't have, or when a page names a module and :load-module!
-   or :placeholder is nil."
+   :pages doesn't have, when only one of :on-signed-out and
+   :signed-out-reason is nil, or when a page names a module and
+   :load-module! or :placeholder is nil."
   [settings]
   (let [errors (if-let [explanation (malli/explain start-settings-shape settings)]
                  (malli-error/humanize explanation)
-                 (merge (find-undeclared-pages settings) (find-actions-problems settings) (find-module-problems settings)))]
+                 (merge (find-undeclared-pages settings) (find-actions-problems settings)
+                        (find-signed-out-problems settings) (find-module-problems settings)))]
     (when errors
       (throw (ex-info (str "The settings have problems: " (pr-str errors))
                       {:type :parlor/bad-settings :errors errors}))))

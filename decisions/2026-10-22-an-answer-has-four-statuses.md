@@ -1,5 +1,7 @@
 # An answer has four statuses; a failed refresh keeps the data
 
+> **Changed in part** by [A refusal is a named reason, declared on its handler](https://github.com/p4ulcristian/bridge/blob/tidy-up/decisions/2026-10-23-a-refusal-is-a-named-reason-declared-on-its-handler.md) (bridge's, 2026-10-23, built on tidy-up, not released): an `:error` is bridge's refusal, `{:bridge/refused … :bridge/data … :bridge/request-id …}`; a failure is a map carrying `:bridge/refused`.
+
 > **Changed in part** by [parlor uses its libraries' own functions](2026-10-23-parlor-uses-its-libraries-own-functions.md) (2026-10-23, v0.3.0): a failure is mailroom's `is-error-answer?`, the same three shapes.
 
 > Carries over Groundwork v0.5.0's `::store/answer` and doorbell's [The browser keeps answers by question](https://github.com/p4ulcristian/doorbell/blob/main/decisions/2026-10-12-the-browser-keeps-answers-by-question.md).

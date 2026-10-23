@@ -1,5 +1,7 @@
 # A write carries a one-time key, kept across its retries
 
+> **Changed in part** by [A refusal is a named reason, declared on its handler](https://github.com/p4ulcristian/bridge/blob/tidy-up/decisions/2026-10-23-a-refusal-is-a-named-reason-declared-on-its-handler.md) (bridge's, 2026-10-23, built on tidy-up, not released): a write is sent again only when answered `:bridge/no-answer`; bridge's `send-message!` no longer fails for want of an answer, and a failed promise is passed on.
+
 > **Changed in part** by [The family and its composer are groundwork](https://github.com/p4ulcristian/groundwork/blob/Starting-from-the-bottom/decisions/2026-10-23-the-family-and-its-composer-are-groundwork.md) (2026-10-23): manor, the family, and house, the composer, are both named groundwork now.
 
 > The user's decision, 2026-10-23 (house's "run-once keys for every write"). Since v0.4.0. Changes in part [What parlor leaves out of Groundwork v0.5.0](2026-10-22-what-parlor-leaves-out.md) (the one-time `:key` is back) and [Every start setting is required](2026-10-22-every-start-setting-is-required.md): `:send-message!` is replaced by `:send-write!`, and `:retry-writes` is new. Carries over Groundwork v0.5.0's `::send-write` (`(assoc ask :key (or (:key ask) (str (random-uuid))))`).
