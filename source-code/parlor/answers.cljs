@@ -371,9 +371,24 @@
 ;; -----------------------------------------------------------------------------
 ;; Subscriptions
 
+(defn- show-entry
+  "An entry as it is read: its status and data or error, loading for a
+   question nothing holds."
+  [answers question]
+  (dissoc (get answers question {:status :loading}) :owners))
+
+(defn find-answer
+  "A held answer read inside an event handler, from its db: what the
+   :parlor/answer subscription gives, {:status :loading}, {:status :ready
+   :data …}, {:status :error :error …} or {:status :refresh-error :data
+   :error}; {:status :loading} for a question nothing holds, and before
+   the start. Pure: it reads, asks nothing."
+  [db question]
+  (show-entry (get-in db [:parlor :answers]) question))
+
 (rf/reg-sub :parlor/-answers (fn [db _] (get-in db [:parlor :answers])))
 
 (rf/reg-sub :parlor/answer
             :<- [:parlor/-answers]
             (fn [answers [_ question]]
-              (dissoc (get answers question {:status :loading}) :owners)))
+              (show-entry answers question)))

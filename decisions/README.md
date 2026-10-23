@@ -27,3 +27,4 @@ parlor rebuilds the browser half of Groundwork v0.5.0 (now the groundwork compos
 - [Every send writes out its options, its once-key among them](2026-10-23-every-send-writes-out-its-options-its-once-key-among-them.md) (built on tidy-up, not released), changes in part [A write carries a one-time key, kept across its retries](2026-10-23-a-write-carries-a-one-time-key-kept-across-its-retries.md)
 - [A move says whether it adds a history entry or replaces the one shown](2026-10-23-a-move-says-whether-it-adds-a-history-entry.md) (built on tidy-up, not released)
 - [The unsaved-changes hold asks with the app's own dialog](2026-10-23-the-hold-asks-with-the-apps-own-dialog.md) (built on tidy-up, not released)
+- [A held answer is read inside an event handler by `find-answer`](2026-10-23-a-held-answer-is-read-in-an-event-handler-by-find-answer.md) (built on tidy-up, not released)

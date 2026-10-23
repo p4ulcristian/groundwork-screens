@@ -219,6 +219,24 @@
                                                (is (= 3 (:orders/all @asked)))
                                                (done))))))))))
 
+(deftest a-held-answer-is-read-in-an-event-handler
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _ (start! send-message! {})
+               q [:orders/all {}]
+               read (atom [])]
+           (rf/reg-event-db :test/read-answer (fn [db [_ question]] (swap! read conj (parlor/find-answer db question)) db))
+           (rf/dispatch-sync [:test/read-answer q])
+           (rf/dispatch-sync [:parlor/watch :orders-page [q]])
+           (rf/dispatch-sync [:test/read-answer q])
+           (after-ms 20
+                     (fn []
+                       (rf/dispatch-sync [:test/read-answer q])
+                       (is (= [{:status :loading} {:status :loading} {:status :ready :data 1}] @read)
+                           "nothing holds it, loading, then ready: the subscription's, without its owners")
+                       (is (= (sub [:parlor/answer q]) (parlor/find-answer @rf-db/app-db q)))
+                       (done))))))
+
 (deftest a-failed-first-answer-is-an-error-and-asking-again-loads
   (async done
          (let [{:keys [failing send-message!]} (make-stand-in-server {} (fn [_ n] n))

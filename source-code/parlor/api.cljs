@@ -31,6 +31,7 @@
      ;   {:status :refresh-error :data old :error refusal}
      ;   a refusal as bridge gives it: {:bridge/refused :order/already-shipped :bridge/data {…} :bridge/request-id \"…\"}
      (parlor/tr (:bridge/refused refusal) (:bridge/data refusal))   ; its text: the reason is the key, its data the args
+     (parlor/find-answer db [:orders/one {:order/id id}])   ; the same, in an event handler, from its db
      (rf/dispatch [:parlor/ask-again [:orders/one {:order/id id}]])
      (rf/dispatch [:parlor/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
      (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]
@@ -81,6 +82,16 @@
    key."
   []
   (answers/make-once-key))
+
+(defn find-answer
+  "A held answer, read inside an event handler from its db: what
+   [:parlor/answer question] gives, {:status :loading}, {:status :ready
+   :data …}, {:status :error :error refusal} or {:status :refresh-error
+   :data old :error refusal}; {:status :loading} for a question nothing
+   holds. It reads only: a question it should keep is held by an owner
+   (:parlor/watch, :parlor/own, a page's :questions-of-pages)."
+  [db question]
+  (answers/find-answer db question))
 
 (defn show-page
   "A component: [draw-page page], the page shown (nil for an address no
