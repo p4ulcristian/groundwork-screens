@@ -11,7 +11,7 @@ person may do, and puts the page the address bar leads to
 ([bridge](https://github.com/p4ulcristian/bridge)'s routing) in the db.
 
 ```clojure
-io.github.p4ulcristian/parlor {:git/tag "v0.7.5" :git/sha "4e8b436"}
+io.github.p4ulcristian/parlor {:git/tag "v0.7.6" :git/sha "19e4540"}
 ```
 
 Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, bridge, dictionary and malli; react
