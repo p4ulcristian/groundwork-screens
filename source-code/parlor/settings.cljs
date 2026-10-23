@@ -24,7 +24,7 @@
    :send-write!: (fn [message once-key]) -> a promise of the answer keyed
    by name, with :mailroom/notes beside it: what :parlor/send sends a
    write through, with its one-time key, a fresh random id per send, the
-   same on each retry of that send (house: the store's send function with
+   same on each retry of that send (groundwork: the store's send function with
    the key in the idempotency-key header). A promise that fails means no
    answer: the network, the server down, a page that isn't an answer.
    :retry-writes: {:times n :wait-ms ms}: a send that got no answer is sent
@@ -38,7 +38,7 @@
    (fn [_] []) for a page that needs none.
    :actions-question: the question whose answer says what the person may
    do, for :parlor/can-i?: the message of doorman's make-my-actions-handler,
-   [:doorman/my-actions {}] in house; nil when the app asks none.
+   [:doorman/my-actions {}] in groundwork; nil when the app asks none.
    :actions-answer-shape: the shape that question's answer fits (doorman's
    my-actions-answer-shape), which \"can I?\" checks it by; nil when
    :actions-question is nil.

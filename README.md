@@ -18,7 +18,7 @@ Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, mailroom, dictionary and malli; r
 and react-dom come from the app's `package.json`. Browser only, one public
 namespace, `parlor.api`, which registers the events and subscriptions
 below when it loads. parlor makes no store, no send function and no wire:
-the app (house) makes them and hands them to the start.
+the app (groundwork) makes them and hands them to the start.
 
 ## The api
 
@@ -46,7 +46,7 @@ and send throw `:parlor/asked-before-start`, naming the messages.
 (ns shop.browser.orders
   (:require [parlor.api :as parlor] [re-frame.core :as rf]))
 
-;; the start (house's), with what it made
+;; the start (groundwork's), with what it made
 (rf/dispatch-sync [:parlor/start {:store              store            ; doorbell/make-question-store
                                   :send-write!        send-write!      ; (fn [message once-key]): a write and its one-time key
                                   :retry-writes       {:times 2 :wait-ms 1000}   ; no answer: sent again, same key

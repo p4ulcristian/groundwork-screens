@@ -1,5 +1,7 @@
 # parlor is its own library: re-frame over doorbell's question store
 
+> **Changed in part** by [The family and its composer are groundwork](https://github.com/p4ulcristian/groundwork/blob/Starting-from-the-bottom/decisions/2026-10-23-the-family-and-its-composer-are-groundwork.md) (2026-10-23): manor, the family, and house, the composer, are both named groundwork now.
+
 > Carries over Groundwork's "re-frame and Reagent in the browser" (2026-10-12, still in force) and the browser half of Groundwork v0.5.0 (`groundwork.endpoints.store`, `groundwork.browser`, `groundwork.browser.routing`), which house's rebuild left out.
 
 **Decision:** the browser's re-frame layer is parlor, a library of its own in its own public repository, under the MIT license, taken from git by tag. It is the room where guests sit and are shown things: what a screen shows, kept in re-frame's db, from doorbell's question store.

@@ -1,5 +1,7 @@
 # A page has its query and language, scrolls once drawn, holds unsaved changes, and loads its module on the way in
 
+> **Changed in part** by [The family and its composer are groundwork](https://github.com/p4ulcristian/groundwork/blob/Starting-from-the-bottom/decisions/2026-10-23-the-family-and-its-composer-are-groundwork.md) (2026-10-23): manor, the family, and house, the composer, are both named groundwork now.
+
 > The user's decision, 2026-10-23 (house's "routing extras"). Since v0.5.0. Takes mailroom v0.6.0 (a page has its query, #fragment and language; a move says how to scroll; leaving is asked) and dictionary v0.1.0. Changes in part [A page is re-frame data, owns the questions it declares, and moving is an event](2026-10-22-a-page-is-re-frame-data-owns-its-questions-and-moving-is-an-event.md) (`:parlor/go-to` takes a query) and [Every start setting is required](2026-10-22-every-start-setting-is-required.md) (four new settings). Takes back the routing rows of [What parlor leaves out](2026-10-22-what-parlor-leaves-out.md): languages, scrolling, the unsaved guard, loading on demand and query filters. Carries over Groundwork v0.5.0's `groundwork.browser` and `groundwork.browser.routing`.
 
 **Decision:** the re-frame side of routing is parlor's; the address, the history and the scroll positions are mailroom's; the language rules dictionary's; the module loading showroom's.

@@ -2,7 +2,7 @@
 
 One file per decision: `YYYY-MM-DD-what-we-decided.md`. The title is the decision. Each file says what we decided, why, and what we chose against. A decision changes by a new file; the old one says so at the top (`Replaced by` or `Changed in part by`), and nothing else in it is rewritten.
 
-parlor rebuilds the browser half of Groundwork v0.5.0 (now house, the part of manor that puts the libraries together) on doorbell's question store and mailroom's routing; each decision names the one it carries over.
+parlor rebuilds the browser half of Groundwork v0.5.0 (now the groundwork composer, which puts the groundwork libraries together) on doorbell's question store and mailroom's routing; each decision names the one it carries over.
 
 ## In force
 
