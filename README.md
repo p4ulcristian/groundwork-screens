@@ -11,7 +11,7 @@ person may do, and puts the page the address bar leads to
 ([groundwork-bridge](https://github.com/p4ulcristian/groundwork-bridge)'s routing) in the db.
 
 ```clojure
-io.github.p4ulcristian/groundwork-screens {:git/tag "v0.8.4" :git/sha "3e89966"}
+io.github.p4ulcristian/groundwork-screens {:git/tag "v0.8.5" :git/sha "eadc3ed"}
 ```
 
 Needs re-frame 1.4.7, Reagent 2.0.1, groundwork-live-updates, bridge, groundwork-languages and malli; react
