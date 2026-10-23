@@ -32,6 +32,8 @@ Choices made while building, not asked:
 
 Left for later, outside parlor: the composer reads `[:parlor/text …]` in `test-code/groundwork_test/sample/browser.cljs` (three), `sample/reports.cljs` (one) and `test-code/groundwork/browser/build_check.cljs` (one), and names it in `README.md`; each becomes `(parlor/tr key args)` in its view.
 
+Built since, on tidy-up (2026-10-23): the composer's sample, reports and build check call `parlor/tr` in their views, and its README names `tr` only.
+
 Open, not built: `[:parlor/hold message]` still takes a text, which the view makes with `tr` and an event handler stores until the page is let go (the composer's sample does so); a language switch while it is held keeps the old text. Whether it takes a key and its args instead is the user's to decide.
 
 ## Added 2026-10-23: the unsaved-changes guard takes a key
