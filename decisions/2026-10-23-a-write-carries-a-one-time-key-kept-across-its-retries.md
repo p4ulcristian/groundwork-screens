@@ -1,5 +1,7 @@
 # A write carries a one-time key, kept across its retries
 
+> **Changed in part** by [Every send writes out its options, its once-key among them](2026-10-23-every-send-writes-out-its-options-its-once-key-among-them.md) (2026-10-23, built on tidy-up, not released): the caller makes the key and passes it on every send, `{:once-key k :keep-alive? false}`; parlor no longer makes one per send.
+
 > **Changed in part** by [A refusal is a named reason, declared on its handler](https://github.com/p4ulcristian/bridge/blob/tidy-up/decisions/2026-10-23-a-refusal-is-a-named-reason-declared-on-its-handler.md) (bridge's, 2026-10-23, built on tidy-up, not released): a write is sent again only when answered `:bridge/no-answer`; bridge's `send-message!` no longer fails for want of an answer, and a failed promise is passed on.
 
 > **Changed in part** by [The family and its composer are groundwork](https://github.com/p4ulcristian/groundwork/blob/Starting-from-the-bottom/decisions/2026-10-23-the-family-and-its-composer-are-groundwork.md) (2026-10-23): manor, the family, and house, the composer, are both named groundwork now.

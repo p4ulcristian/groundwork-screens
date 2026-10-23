@@ -21,11 +21,12 @@
   ":parlor/start's settings, every key required.
    :store: doorbell's question store (doorbell.api/make-question-store);
    parlor keeps its answers from it.
-   :send-write!: (fn [message once-key]) -> a promise of the answer keyed
-   by name, with :bridge/notes beside it: what :parlor/send sends a
-   write through, with its one-time key, a fresh random id per send, the
-   same on each retry of that send (groundwork: the store's send function with
-   the key in the idempotency-key header). bridge's send-message!: a
+   :send-write!: (fn [message {:keys [once-key keep-alive?]}]) -> a
+   promise of the answer keyed by name, with :bridge/notes beside it:
+   what :parlor/send sends a write through, with the send's options as
+   the send wrote them out (send-options-shape), the same on each retry
+   of that send (groundwork: bridge's send-message! with the key in the
+   idempotency-key header and :keep-alive? as it is). bridge's send-message!: a
    promise that doesn't fail for want of an answer; the network, the
    server down, a page that isn't an answer are its :bridge/no-answer.
    :retry-writes: {:times n :wait-ms ms}: a send answered :bridge/no-answer
@@ -169,3 +170,28 @@
       (throw (ex-info (str "[:parlor/hold text] takes a text's key and its args, {:text key :args {}}: " (pr-str errors))
                       {:type :parlor/bad-hold :errors errors}))))
   text)
+
+(def send-options-shape
+  "[:parlor/send message on-answer options]'s options, every key written
+   out:
+   :once-key: the write's one-time key, text (make-once-key), made by the
+   caller: a form makes it when its draft starts, keeps it beside the
+   draft and passes it on every Save of that draft, so the server answers
+   a second Save with the first one's answer; a new draft, a new key.
+   :keep-alive?: true, the request finishes even when the page closes
+   (fetch's keepalive; its body, with the other keepalive requests in
+   flight, may not pass 64 KB); false, a plain request."
+  [:map {:closed true}
+   [:once-key [:string {:min 1}]]
+   [:keep-alive? :boolean]])
+
+(defn check-send-options
+  "Returns a send's options; throws :parlor/bad-send with every problem at
+   once (none written out among them: a new key for each send would be a
+   hidden default)."
+  [options]
+  (when-let [explanation (malli/explain send-options-shape options)]
+    (let [errors (malli-error/humanize explanation)]
+      (throw (ex-info (str "[:parlor/send message on-answer options] takes its options written out, {:once-key (parlor/make-once-key) :keep-alive? false}: " (pr-str errors))
+                      {:type :parlor/bad-send :errors errors}))))
+  options)

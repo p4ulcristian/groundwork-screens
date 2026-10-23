@@ -8,7 +8,7 @@
    [re-frame.registrar :as registrar]))
 
 (deftest the-function-names
-  (is (= '#{start-settings-shape show-page mount-root! tr}
+  (is (= '#{start-settings-shape show-page mount-root! tr make-once-key}
          (set (keys (ns-publics 'parlor.api))))))
 
 (defn- public-parlor-names [kind]

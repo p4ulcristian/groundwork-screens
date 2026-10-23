@@ -19,10 +19,13 @@
      good answer; a failed answer, or the question let go, tells it
      nothing.
    - :parlor/send sends a message that changes data, through the start's
-     :send-write!, with a one-time key made for this send (a random id):
-     a send answered :bridge/no-answer (bridge's: no answer came) is sent
-     again with the same key, the start's :retry-writes, and the server
-     saves it once; any other refusal is the server's answer. Its event
+     :send-write!, with its options written out: {:once-key :keep-alive?},
+     the one-time key made by the caller (make-once-key) and kept with its
+     draft, so a second Save of the same draft is the same write; and
+     whether the request finishes after the page closes. A send answered
+     :bridge/no-answer (bridge's: no answer came) is sent again with the
+     same key, the start's :retry-writes, and the server saves it once;
+     any other refusal is the server's answer. Its event
      gets {:status :ready :data answer} or {:status :error :error answer},
      the refusal as bridge gives it, {:bridge/refused … :bridge/data …
      :bridge/request-id …}. A good answer asks again, through doorbell,
@@ -39,6 +42,7 @@
    [clojure.string :as str]
    [doorbell.api :as doorbell]
    [bridge.api :as bridge]
+   [parlor.settings :as settings]
    [re-frame.core :as rf]))
 
 (defn failed?
@@ -243,28 +247,30 @@
         (doorbell/hear-changed-table! store table)))))
 
 (defn make-once-key
-  "A write's one-time key: a random id, text."
+  "A write's one-time key: a random id, text. The caller makes it when a
+   draft starts and passes it on every send of that draft."
   []
   (str (random-uuid)))
 
 (defn send-with-retries
-  "(send-write! message once-key), and again with the same key while the
-   message's name is answered :bridge/no-answer, up to times more, wait-ms
-   apart. A promise of the last answer. A promise send-write! fails is
-   passed on as it is: bridge's send-message! fails none for want of an
-   answer, so it is a bug, not a refusal."
-  [send-write! message once-key {:keys [times wait-ms] :as retry-writes}]
+  "(send-write! message send-options), and again with the same options,
+   the same key among them, while the message's name is answered
+   :bridge/no-answer, up to times more, wait-ms apart. A promise of the
+   last answer. A promise send-write! fails is passed on as it is:
+   bridge's send-message! fails none for want of an answer, so it is a
+   bug, not a refusal."
+  [send-write! message send-options {:keys [times wait-ms] :as retry-writes}]
   (let [message-name (key (first message))]
-    (-> (send-write! message once-key)
+    (-> (send-write! message send-options)
         (.then (fn [answer]
                  (if (and (pos? times) (is-no-answer? (get answer message-name)))
                    (-> (js/Promise. (fn [resolve _] (js/setTimeout resolve wait-ms)))
-                       (.then #(send-with-retries send-write! message once-key (assoc retry-writes :times (dec times)))))
+                       (.then #(send-with-retries send-write! message send-options (assoc retry-writes :times (dec times)))))
                    answer))))))
 
 (rf/reg-fx :parlor/-send
-           (fn [{:keys [started message-name params on-answer]}]
-             (-> (send-with-retries (:send-write! started) {message-name params} (make-once-key) (:retry-writes started))
+           (fn [{:keys [started message-name params on-answer send-options]}]
+             (-> (send-with-retries (:send-write! started) {message-name params} send-options (:retry-writes started))
                  (.then (fn [answer]
                           (let [data (get answer message-name)]
                             (when-not (failed? data)
@@ -354,12 +360,13 @@
                        now (assoc :fx [[:dispatch now]])))))
 
 (rf/reg-event-fx :parlor/send
-                 (fn [{:keys [db]} [_ [message-name params] on-answer]]
+                 (fn [{:keys [db]} [_ [message-name params] on-answer send-options]]
                    (started! db "send" [[message-name params]])
                    {:parlor/-send {:started      (get-in db [:parlor :started])
                                    :message-name message-name
                                    :params       params
-                                   :on-answer    on-answer}}))
+                                   :on-answer    on-answer
+                                   :send-options (settings/check-send-options send-options)}}))
 
 ;; -----------------------------------------------------------------------------
 ;; Subscriptions

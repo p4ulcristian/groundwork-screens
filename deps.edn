@@ -14,8 +14,9 @@
   io.github.p4ulcristian/doorbell {:git/sha "a42786b9743c3c7c1aa8e22b1ad453d37e4077ae"}
   ;; the address bar followed into re-frame, and moves to a page; an
   ;; answer told from a refusal (it brings wire, which the app's send-message! carries)
-  ;; on its tidy-up branch, not released: a refusal is a named reason, declared on its handler
-  io.github.p4ulcristian/bridge {:git/sha "63451adbe42a6176074e1208ad4148e0eda19eab"}
+  ;; on its tidy-up branch, not released: a refusal is a named reason, declared on its handler;
+  ;; send-message! takes :keep-alive?
+  io.github.p4ulcristian/bridge {:git/sha "b44c7ff9387742f79cecb61f59036631aa71c72d"}
   ;; the language of an address, and an address made in a language
   ;; on its tidy-up branch, not released: a key names its ICU argument with - read as _;
   ;; the browser's make-text, which tr calls

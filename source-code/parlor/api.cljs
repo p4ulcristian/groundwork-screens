@@ -6,7 +6,7 @@
 
      ;; once, at the start, with the store and the send function the app made
      (rf/dispatch-sync [:parlor/start {:store              store            ; doorbell's question store
-                                       :send-write!        send-write!      ; (fn [message once-key]): a write, with its one-time key
+                                       :send-write!        send-write!      ; (fn [message {:once-key :keep-alive?}]): a write, with its send's options
                                        :retry-writes       {:times 2 :wait-ms 1000}   ; a write that got no answer, sent again
                                        :pages              pages            ; the server's, from the page
                                        :questions-of-pages {:orders/page (fn [{:keys [path-params]}] […])}  ; each page's
@@ -33,7 +33,8 @@
      (parlor/tr (:bridge/refused refusal) (:bridge/data refusal))   ; its text: the reason is the key, its data the args
      (rf/dispatch [:parlor/ask-again [:orders/one {:order/id id}]])
      (rf/dispatch [:parlor/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
-     (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]])
+     (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]
+                   {:once-key (:once-key draft) :keep-alive? false}])   ; the key made with the draft: (parlor/make-once-key)
      @(rf/subscribe [:parlor/can-i? :orders/edit [:shop shop-id]])
      (parlor/tr :orders.cart/add {:count 3})   ; in the page's language, only in a view, which it subscribes
      ;; an event stores a text's key and its args; the view that shows it calls tr
@@ -52,7 +53,7 @@
    is required (start-settings-shape); a missing or unknown one refuses,
    :parlor/bad-settings, with every problem at once."
   (:require
-   [parlor.answers]
+   [parlor.answers :as answers]
    [parlor.can-i]
    [parlor.pages :as pages]
    [parlor.screen :as screen]
@@ -69,6 +70,15 @@
    :query-shapes-of-pages :languages :load-module! :placeholder (see
    parlor.settings)."
   settings/start-settings-shape)
+
+(defn make-once-key
+  "A write's one-time key, for :parlor/send's :once-key: a random id,
+   text. A form makes one when its draft starts, keeps it beside the
+   draft, and passes it on every Save of that draft, so a Save pressed
+   again after a network error is the same write; a new draft, a new
+   key."
+  []
+  (answers/make-once-key))
 
 (defn show-page
   "A component: [draw-page page], the page shown (nil for an address no

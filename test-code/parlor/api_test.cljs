@@ -66,8 +66,8 @@
      :signed-out    out
      :once-keys     once-keys
      :send-message! send!
-     :send-write!   (fn [message once-key]
-                      (swap! once-keys conj [(ffirst message) once-key])
+     :send-write!   (fn [message send-options]
+                      (swap! once-keys conj [(ffirst message) (:once-key send-options)])
                       (send! message))}))
 
 (defn- after-ms [ms f] (js/setTimeout f ms))
@@ -179,7 +179,7 @@
                          [[:parlor/own :orders-page [[:orders/all {}]]] [:orders/all]]
                          [[:parlor/ask-again [:orders/all {}]] [:orders/all]]
                          [[:parlor/once-answered [:orders/all {}] [:test/heard]] [:orders/all]]
-                         [[:parlor/send [:orders/move {:order/id "1"}] [:test/heard]] [:orders/move]]]]
+                         [[:parlor/send [:orders/move {:order/id "1"}] [:test/heard] {:once-key (parlor/make-once-key) :keep-alive? false}] [:orders/move]]]]
     (let [{:keys [type message-names]} (thrown-data #(rf/dispatch-sync event))]
       (is (= :parlor/asked-before-start type) (str (first event) " throws"))
       (is (= names message-names) "naming the messages")))
@@ -299,7 +299,7 @@
                                  (fn []
                                    (is (= [[:asked-again 2]] @heard) "told the fresh answer")
                                    (reset! heard [])
-                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/then-once-answered q :after-write]])
+                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/then-once-answered q :after-write] {:once-key (parlor/make-once-key) :keep-alive? false}])
                                    (after-ms 40
                                              (fn []
                                                (is (= [[:after-write 3]] @heard)
@@ -315,7 +315,7 @@
            (rf/dispatch-sync [:parlor/watch :orders-page [[:orders/all {}] [:shops/all {}]]])
            (after-ms 20
                      (fn []
-                       (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved]])
+                       (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
                        (after-ms 40
                                  (fn []
                                    (is (= [[:moved {:status :ready :data {:moved 1}}]] @heard))
@@ -324,15 +324,15 @@
                                    (is (= {:status :ready :data 2} (sub [:parlor/answer [:orders/all {}]])))
                                    (reset! heard [])
                                    (swap! failing conj :orders/move)
-                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved]])
+                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
                                    (after-ms 40
                                              (fn []
                                                (is (= [[:moved {:status :error :error not-found}]] @heard))
                                                (is (= 2 (:orders/all @asked)) "a failed write asks nothing again")
                                                (reset! heard [])
                                                (reset! offline #{:orders/move})
-                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] nil])
-                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved]])
+                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] nil {:once-key (parlor/make-once-key) :keep-alive? false}])
+                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
                                                (after-ms 40
                                                          (fn []
                                                            (is (= [[:moved {:status :error :error no-answer}]] @heard)
@@ -344,19 +344,20 @@
          (let [{:keys [offline failing once-keys send-message! send-write!]}
                (make-stand-in-server {:orders/move ["orders"]} (fn [_ n] {:moved n}))
                _ (start! send-message! {:send-write! send-write! :retry-writes {:times 2 :wait-ms 5}})]
-           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :first]])
-           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :second]])
+           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :first] {:once-key "draft-1" :keep-alive? false}])
+           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :second] {:once-key "draft-1" :keep-alive? false}])
+           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "8"}] [:test/heard :third] {:once-key "draft-2" :keep-alive? false}])
            (after-ms 30
                      (fn []
-                       (let [[[_ first-key] [_ second-key]] @once-keys]
-                         (is (= 2 (count @once-keys)))
-                         (is (string? first-key))
-                         (is (not= first-key second-key) "a fresh key for each send"))
+                       (is (= ["draft-1" "draft-1" "draft-2"] (map second @once-keys))
+                           "the key the caller wrote out: a second Save of the same draft is the same write")
+                       (is (string? (parlor/make-once-key)))
+                       (is (not= (parlor/make-once-key) (parlor/make-once-key)) "a fresh key each time one is made")
                        (reset! once-keys [])
                        (reset! heard [])
                        (reset! offline #{:orders/move})
                        (after-ms 7 #(reset! offline #{}))
-                       (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :retried]])
+                       (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :retried] {:once-key (parlor/make-once-key) :keep-alive? false}])
                        (after-ms 40
                                  (fn []
                                    (is (<= 2 (count @once-keys) 3) "sent again while it got no answer")
@@ -366,7 +367,7 @@
                                    (reset! once-keys [])
                                    (reset! heard [])
                                    (reset! offline #{:orders/move})
-                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :gave-up]])
+                                   (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :gave-up] {:once-key (parlor/make-once-key) :keep-alive? false}])
                                    (after-ms 40
                                              (fn []
                                                (is (= 3 (count @once-keys)) "the first try and :times more")
@@ -375,12 +376,28 @@
                                                (reset! heard [])
                                                (reset! offline #{})
                                                (reset! failing #{:orders/move})
-                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :refused]])
+                                               (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :refused] {:once-key (parlor/make-once-key) :keep-alive? false}])
                                                (after-ms 40
                                                          (fn []
                                                            (is (= 1 (count @once-keys)) "a refusal is the server's answer: not sent again")
                                                            (is (= [[:refused {:status :error :error not-found}]] @heard))
                                                            (done))))))))))))
+
+(deftest a-send-writes-out-its-options
+  (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+        sent                    (atom [])
+        _                       (start! send-message! {:send-write! (fn [message options] (swap! sent conj options) (send-message! message))})]
+    (testing "no options, a missing key or an unknown one: refused, named"
+      (is (= :parlor/bad-send (:type (thrown-data #(rf/dispatch-sync [:parlor/send [:orders/move {}] nil]))))
+          "none: a new key for each send would be a hidden default")
+      (is (= {:keep-alive? ["missing required key"]}
+             (:errors (thrown-data #(rf/dispatch-sync [:parlor/send [:orders/move {}] nil {:once-key "k"}])))))
+      (is (= {:once-key ["should be at least 1 character"] :colour ["disallowed key"]}
+             (:errors (thrown-data #(rf/dispatch-sync [:parlor/send [:orders/move {}] nil {:once-key "" :keep-alive? false :colour 1}])))))
+      (is (= [] @sent) "nothing sent"))
+    (testing "the options go to :send-write! as written"
+      (rf/dispatch-sync [:parlor/send [:orders/move {}] nil {:once-key "k-1" :keep-alive? true}])
+      (is (= [{:once-key "k-1" :keep-alive? true}] @sent)))))
 
 (deftest a-write-without-notes-asks-again-everything-watched
   (async done
@@ -390,7 +407,7 @@
            (rf/dispatch-sync [:parlor/watch :orders-page [[:orders/all {}] [:shops/all {}]]])
            (after-ms 20
                      (fn []
-                       (rf/dispatch-sync [:parlor/send [:orders/import {}] nil])
+                       (rf/dispatch-sync [:parlor/send [:orders/import {}] nil {:once-key (parlor/make-once-key) :keep-alive? false}])
                        (after-ms 30
                                  (fn []
                                    (is (= {:orders/all 2 :shops/all 2 :orders/import 1} @asked))
@@ -733,7 +750,7 @@
            (swap! rf-db/app-db assoc-in [:parlor :page] {:name :orders/order :path-params {:order-id "7"} :query {:tab :notes}})
            (reset! out #{:orders/one :shops/all :orders/move})
            (rf/dispatch-sync [:parlor/watch :order-page [[:orders/one {:order/id "7"}] [:shops/all {}]]])
-           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved]])
+           (rf/dispatch-sync [:parlor/send [:orders/move {:order/id "7"}] [:test/heard :moved] {:once-key (parlor/make-once-key) :keep-alive? false}])
            (after-ms 40
                      (fn []
                        (is (= [[:to-login {:page :orders/order :params {:order-id "7"} :query {:tab :notes}}]]
