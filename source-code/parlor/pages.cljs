@@ -23,7 +23,7 @@
 
    Loading on demand: a page whose :module (the server's pages) isn't
    loaded yet has it loaded on the way in, by the start's :load-module!
-   (showroom's, its stylesheets before its code); meanwhile
+   (browser-build's, its stylesheets before its code); meanwhile
    [parlor/show-page draw-page] draws the start's :placeholder instead of
    the page, and the scroll waits for the page."
   (:require

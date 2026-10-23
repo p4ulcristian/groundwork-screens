@@ -56,7 +56,7 @@
    the page) and the language the page came in; an address's prefix says
    its language, and a move keeps it.
    :load-module!: (fn [module-name]) -> a promise, settled once a module
-   loaded on demand has its stylesheets and code in (showroom's
+   loaded on demand has its stylesheets and code in (browser-build's
    load-module!), for a page whose :module isn't loaded; nil when no page
    names one.
    :placeholder: a component, (fn [page status]), drawn by show-page in

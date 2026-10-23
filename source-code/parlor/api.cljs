@@ -17,7 +17,7 @@
                                        :on-move            nil                    ; or an event
                                        :query-shapes-of-pages {:orders/page [:map [:tab {:optional true} :keyword]]}  ; nil: text
                                        :languages          nil                    ; or {:dictionary settings :language-of-page \"en\"}
-                                       :load-module!       nil                    ; or showroom's, for pages that name a :module
+                                       :load-module!       nil                    ; or browser-build's, for pages that name a :module
                                        :placeholder        nil}])                 ; or (fn [page status]) while one loads
      (parlor/mount-root! \"app\" root)
 

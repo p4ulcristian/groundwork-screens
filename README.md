@@ -62,7 +62,7 @@ and send throw `:parlor/asked-before-start`, naming the messages.
                                   :on-move            nil
                                   :query-shapes-of-pages {:orders/page nil :about/page nil}   ; a malli map reads the query into types
                                   :languages          nil                ; or {:dictionary settings :language-of-page "en"}
-                                  :load-module!       nil                ; or showroom's, when a page names a :module
+                                  :load-module!       nil                ; or browser-build's, when a page names a :module
                                   :placeholder        nil}])             ; or (fn [page status]) while it loads
 
 (defn orders-page [shop-id]
