@@ -1,5 +1,7 @@
 # tr is the one text call in the browser, and it is called only in views
 
+> **Changed in part** by [The unsaved-changes hold asks with the app's own dialog](2026-10-23-the-hold-asks-with-the-apps-own-dialog.md) (2026-10-23, built on tidy-up, not released): the hold is `{:ask-with … :text key :args args}`, `:ask-with` required.
+
 > The user's decision, 2026-10-23, from the tidy-up. Built on tidy-up, not released.
 
 **Decision:** `(parlor/tr key args)` is the one public text call in the browser, and it works only while a view draws: it subscribes, so the view redraws when the language or the catalog changes. Called anywhere else (an event handler, an effect) it throws, named. The `[:parlor/text key args]` subscription leaves the public api. An event that needs a text stores its key and data instead, and the view that shows it calls `tr`:

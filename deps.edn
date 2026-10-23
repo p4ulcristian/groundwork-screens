@@ -16,8 +16,8 @@
   ;; answer told from a refusal (it brings wire, which the app's send-message! carries)
   ;; on its tidy-up branch, not released: a refusal is a named reason, declared on its handler;
   ;; send-message! takes :keep-alive?; go-to-page! takes :push or :replace; :may-leave? is
-  ;; asked with the move, and finish-move! finishes one it held back
-  io.github.p4ulcristian/bridge {:git/sha "b2d92ab3b04459564e840bdace4268e54233646a"}
+  ;; asked with the move, and finish-move! finishes one it held back; an sse line tells its break
+  io.github.p4ulcristian/bridge {:git/sha "ed6998deb5719fb6c37beaa629f09d075a80efdf"}
   ;; the language of an address, and an address made in a language
   ;; on its tidy-up branch, not released: a key names its ICU argument with - read as _;
   ;; the browser's make-text, which tr calls
