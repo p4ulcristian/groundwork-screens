@@ -417,7 +417,7 @@
                                                :on-answer-failed  nil
                                                :on-move           [:test/heard :moved]
                                                :query-shapes-of-pages {:orders/page [:map [:tab :keyword]] :orders/order nil}
-                                               :languages         {:dictionary       {:languages ["en" "de"] :default "en" :cookie-name nil
+                                               :languages         {:dictionary       {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil
                                                                                       :preview-languages [] :fallback-language "en"
                                                                                       :catalogs-path "i18n"}
                                                                    :language-of-page "en"}
@@ -570,7 +570,7 @@
                                              (swap! fetched conj language)
                                              (js/Promise. (fn [resolve _] (js/setTimeout #(resolve (get catalogs language)) 10)))))
            (start-following! send-message! {:orders/list {:address "/orders" :title nil}} {:orders/list (fn [_] [])}
-                             {:languages {:dictionary {:languages ["en" "de"] :default "en" :cookie-name nil :preview-languages []
+                             {:languages {:dictionary {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
                                                        :fallback-language "en" :catalogs-path "i18n"}
                                           :language-of-page "en"}})
            (is (= ["en"] @fetched) "the page's language, which is the fallback too, fetched once")
@@ -580,12 +580,14 @@
                      (fn []
                        (is (true? (sub [:parlor/texts-ready?])))
                        (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])))
+                       (is (= "Add 2 items" (parlor/tr :orders.cart/add {:count 2})) "tr, outside a screen: the db as it is")
                        (arrive! (page "de") :keep)
                        (is (= ["en" "de"] @fetched) "a page in another language fetches its catalog")
                        (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])) "the language shown before, while it comes")
                        (after-ms 30
                                  (fn []
                                    (is (= "2 Artikel hinzufügen" (sub [:parlor/text :orders.cart/add {:count 2}])) "swapped")
+                                   (is (= "2 Artikel hinzufügen" (parlor/tr :orders.cart/add {:count 2})))
                                    (is (= "Cart" (sub [:parlor/text :orders.cart/title {}])) "missing in German: the fallback's")
                                    (is (= "orders.cart/gone" (sub [:parlor/text :orders.cart/gone {}])) "missing everywhere: its key")
                                    (arrive! (page "en") :keep)

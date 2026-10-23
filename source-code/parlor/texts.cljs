@@ -74,15 +74,24 @@
 
 (rf/reg-sub :parlor/-texts (fn [db _] (select-keys (:parlor db) [:texts :text-language :started])))
 
+(defn find-text
+  "The key's message in the language the texts are shown in: its key's
+   name without :languages; nil before the first catalog is in."
+  [{:keys [texts text-language started]} message-key args]
+  (cond
+    (nil? (:languages started)) (dictionary/make-text {:fallback-language nil :catalogs {}} nil message-key {})
+    text-language               (dictionary/make-text texts text-language message-key args)
+    :else                       nil))
+
+(defn are-texts-ready?
+  "Whether the first catalogs are in (always, without :languages)."
+  [{:keys [text-language started]}]
+  (or (nil? (:languages started)) (some? text-language)))
+
 (rf/reg-sub :parlor/text
             :<- [:parlor/-texts]
-            (fn [{:keys [texts text-language started]} [_ message-key args]]
-              (cond
-                (nil? (:languages started)) (dictionary/make-text {:fallback-language nil :catalogs {}} nil message-key {})
-                text-language               (dictionary/make-text texts text-language message-key args)
-                :else                       nil)))
+            (fn [parlor [_ message-key args]] (find-text parlor message-key args)))
 
 (rf/reg-sub :parlor/texts-ready?
             :<- [:parlor/-texts]
-            (fn [{:keys [text-language started]} _]
-              (or (nil? (:languages started)) (some? text-language))))
+            (fn [parlor _] (are-texts-ready? parlor)))

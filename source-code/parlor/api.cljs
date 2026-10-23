@@ -31,7 +31,8 @@
      (rf/dispatch [:parlor/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
      (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]])
      @(rf/subscribe [:parlor/can-i? :orders/edit [:shop shop-id]])
-     @(rf/subscribe [:parlor/text :orders.cart/add {:count 3}])   ; in the page's language; nil until its catalog is in
+     (parlor/tr :orders.cart/add {:count 3})                      ; in the page's language, in a screen or an event
+     @(rf/subscribe [:parlor/text :orders.cart/add {:count 3}])   ; the same, as a subscription; nil until its catalog is in
      @(rf/subscribe [:parlor/texts-ready?])
      @(rf/subscribe [:parlor/page])   ;=> {:name :orders/page :page … :path-params … :query … :language …} or nil
      (rf/dispatch [:parlor/go-to :orders/order {:order-id id} {}])   ; a query, {} for none
@@ -51,7 +52,10 @@
    [parlor.screen :as screen]
    [parlor.settings :as settings]
    [parlor.start]
-   [parlor.texts]))
+   [parlor.texts :as texts]
+   [re-frame.core :as rf]
+   [re-frame.db :as rf-db]
+   [reagent.ratom :as ratom]))
 
 (def start-settings-shape
   ":parlor/start's settings, every key required: :store :send-write!
@@ -67,8 +71,21 @@
   [pages/show-page draw-page])
 
 (defn mount-root!
-  "Draws [root] into the page's element with this id, with Reagent; call
-   it again after a save in development: it reuses the element's React
-   root and forgets re-frame's cached subscriptions."
+  "Draws [root] into the page's element with this id, with Reagent, once
+   the first catalogs are in (until then the element keeps what the page
+   put in it); call it after :parlor/start, and again after a save in
+   development: it reuses the element's React root and forgets re-frame's
+   cached subscriptions."
   [element-id root]
   (screen/mount-root! element-id root))
+
+(defn tr
+  "The key's message in the page's language, args filled in ({} for
+   none): [:parlor/text key args]. In a screen it is that subscription,
+   so a swapped catalog draws the screen again; elsewhere (an event, a
+   helper) it reads re-frame's db as it is now. Inside the root
+   mount-root! draws, never nil: the root waits for the first catalogs."
+  [message-key args]
+  (if (ratom/reactive?)
+    @(rf/subscribe [:parlor/text message-key args])
+    (texts/find-text (:parlor @rf-db/app-db) message-key args)))

@@ -1,3 +1,5 @@
+> **Changed in part** by [`(parlor/tr key args)` is the text call; the root waits for the first catalogs](2026-10-23-tr-is-the-text-call-and-the-root-waits-for-the-first-catalogs.md) (2026-10-23, v0.8.0): `(parlor/tr key args)` is the text call, and the root waits for the first catalogs.
+
 # Texts are re-frame data, in the page's language; a swapped catalog draws again
 
 > The user's decision, 2026-10-23 (dictionary's texts, carried over from Iron Rainbow's i18n): "the browser re-renders when the catalog swaps, through a re-frame subscription or a reagent atom; parlor is the re-frame layer; decide". Decided: a re-frame subscription, parlor's. Since v0.7.0. Takes dictionary v0.2.0.
