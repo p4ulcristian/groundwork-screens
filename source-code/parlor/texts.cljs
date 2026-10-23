@@ -1,7 +1,8 @@
 (ns parlor.texts
-  "The texts a screen shows, in the page's language, as re-frame data:
-   @(rf/subscribe [:parlor/text :orders.cart/add {:count 3}]), which
-   parlor.api's tr reads. The catalogs are dictionary's, fetched from the
+  "The texts a view shows, in the page's language, as re-frame data:
+   [:parlor/-text :orders.cart/add {:count 3}], parlor's own
+   subscription, which parlor.api's tr subscribes while a view draws
+   (the app calls tr, never the subscription). The catalogs are dictionary's, fetched from the
    server (the same files it reads): at the start the page's language's
    and the fallback language's, and on a move to a page in another
    language that one's.
@@ -12,7 +13,7 @@
    waits for them, so a screen in it never reads nil). A catalog that
    couldn't be fetched counts as there and empty: its messages come from
    the fallback language, or show as their keys' names. When the catalog
-   swaps, every screen reading a text draws again, as with any
+   swaps, every view reading a text draws again, as with any
    subscription. Without :languages, and before :parlor/start, a text is
    its key's name."
   (:require
@@ -91,7 +92,7 @@
   [{:keys [text-language started]}]
   (or (nil? (:languages started)) (some? text-language)))
 
-(rf/reg-sub :parlor/text
+(rf/reg-sub :parlor/-text
             :<- [:parlor/-texts]
             (fn [parlor [_ message-key args]] (find-text parlor message-key args)))
 

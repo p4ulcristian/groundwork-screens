@@ -35,8 +35,10 @@
      (rf/dispatch [:parlor/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
      (rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]])
      @(rf/subscribe [:parlor/can-i? :orders/edit [:shop shop-id]])
-     (parlor/tr :orders.cart/add {:count 3})                      ; in the page's language, in a screen or an event
-     @(rf/subscribe [:parlor/text :orders.cart/add {:count 3}])   ; the same, as a subscription; nil until its catalog is in
+     (parlor/tr :orders.cart/add {:count 3})   ; in the page's language, only in a view, which it subscribes
+     ;; an event stores a text's key and its args; the view that shows it calls tr
+     {:db (assoc-in db [:toasts id] {:text :order/already-shipped :args {:order/shipped-at t}})}
+     (defn toast [{:keys [text args]}] [:div.toast (parlor/tr text args)])
      @(rf/subscribe [:parlor/texts-ready?])
      @(rf/subscribe [:parlor/page])   ;=> {:name :orders/page :page … :path-params … :query … :language …} or nil
      (rf/dispatch [:parlor/go-to :orders/order {:order-id id} {}])   ; a query, {} for none
@@ -56,9 +58,8 @@
    [parlor.screen :as screen]
    [parlor.settings :as settings]
    [parlor.start]
-   [parlor.texts :as texts]
+   [parlor.texts]
    [re-frame.core :as rf]
-   [re-frame.db :as rf-db]
    [reagent.ratom :as ratom]))
 
 (def start-settings-shape
@@ -87,12 +88,18 @@
   (screen/mount-root! element-id root))
 
 (defn tr
-  "The key's message in the page's language, args filled in ({} for
-   none): [:parlor/text key args]. In a screen it is that subscription,
-   so a swapped catalog draws the screen again; elsewhere (an event, a
-   helper) it reads re-frame's db as it is now. Inside the root
-   mount-root! draws, never nil: the root waits for the first catalogs."
+  "The key's message in the page's language, args filled in ({} for none;
+   a key names its argument without its namespace, a - read as _), the
+   one text call in the browser. It works only while a view draws: it
+   subscribes, so the view draws again when the language or the catalog
+   changes. Called anywhere else (an event handler, an effect, a
+   callback) it throws, :parlor/tr-outside-a-view, naming the key: an
+   event stores the key and its args, and the view that shows it calls
+   tr. Inside the root mount-root! draws, never nil: the root waits for
+   the first catalogs; a view drawn outside it gets nil until they are
+   in."
   [message-key args]
-  (if (ratom/reactive?)
-    @(rf/subscribe [:parlor/text message-key args])
-    (texts/find-text (:parlor @rf-db/app-db) message-key args)))
+  (when-not (ratom/reactive?)
+    (throw (ex-info (str "(parlor/tr " message-key ") outside a view: an event stores the key and its args, and the view that shows it calls tr")
+                    {:type :parlor/tr-outside-a-view :key message-key})))
+  @(rf/subscribe [:parlor/-text message-key args]))

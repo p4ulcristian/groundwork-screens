@@ -14,6 +14,7 @@
    [parlor.pages :as pages]
    [re-frame.core :as rf]
    [re-frame.db :as rf-db]
+   [reagent.ratom :as ratom]
    [wire.api :as wire]))
 
 (def ^:private test-wire
@@ -70,6 +71,14 @@
                       (send! message))}))
 
 (defn- after-ms [ms f] (js/setTimeout f ms))
+
+(defn- drawn-tr
+  "parlor/tr as a view calls it: inside a reaction (Reagent's reactive
+   context), read fresh."
+  [message-key args]
+  (rf/clear-subscription-cache!)
+  (let [drawing (ratom/make-reaction #(parlor/tr message-key args) :auto-run true)]
+    (try @drawing (finally (ratom/dispose! drawing)))))
 
 (defn- sub
   "A subscription's value now, read fresh outside a screen."
@@ -611,33 +620,73 @@
                                                        :fallback-language "en" :catalogs-path "i18n"}
                                           :language-of-page "en"}})
            (is (= ["en"] @fetched) "the page's language, which is the fallback too, fetched once")
-           (is (nil? (sub [:parlor/text :orders.cart/add {:count 2}])) "nothing before its catalog is in")
+           (is (nil? (drawn-tr :orders.cart/add {:count 2})) "nothing before its catalog is in")
            (is (false? (sub [:parlor/texts-ready?])))
            (after-ms 30
                      (fn []
                        (is (true? (sub [:parlor/texts-ready?])))
-                       (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])))
-                       (is (= "Add 2 items" (parlor/tr :orders.cart/add {:count 2})) "tr, outside a screen: the db as it is")
+                       (is (= "Add 2 items" (drawn-tr :orders.cart/add {:count 2})))
+                       (is (= {:type :parlor/tr-outside-a-view :key :orders.cart/add}
+                              (thrown-data #(parlor/tr :orders.cart/add {:count 2})))
+                           "tr outside a view: refused, named")
                        (arrive! (page "de") :keep)
                        (is (= ["en" "de"] @fetched) "a page in another language fetches its catalog")
-                       (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])) "the language shown before, while it comes")
+                       (is (= "Add 2 items" (drawn-tr :orders.cart/add {:count 2})) "the language shown before, while it comes")
                        (after-ms 30
                                  (fn []
-                                   (is (= "2 Artikel hinzufügen" (sub [:parlor/text :orders.cart/add {:count 2}])) "swapped")
-                                   (is (= "2 Artikel hinzufügen" (parlor/tr :orders.cart/add {:count 2})))
-                                   (is (= "Cart" (sub [:parlor/text :orders.cart/title {}])) "missing in German: the fallback's")
-                                   (is (= "orders.cart/gone" (sub [:parlor/text :orders.cart/gone {}])) "missing everywhere: its key")
+                                   (is (= "2 Artikel hinzufügen" (drawn-tr :orders.cart/add {:count 2})) "swapped")
+                                   (is (= "Cart" (drawn-tr :orders.cart/title {})) "missing in German: the fallback's")
+                                   (is (= "orders.cart/gone" (drawn-tr :orders.cart/gone {})) "missing everywhere: its key")
                                    (arrive! (page "en") :keep)
-                                   (is (= "Add 2 items" (sub [:parlor/text :orders.cart/add {:count 2}])) "back at once: it is in")
+                                   (is (= "Add 2 items" (drawn-tr :orders.cart/add {:count 2})) "back at once: it is in")
                                    (is (= ["en" "de"] @fetched))
                                    (set! dictionary/fetch-catalog! fetch)
                                    (done))))))))
+
+(deftest a-view-draws-again-when-the-language-changes
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               fetch    dictionary/fetch-catalog!
+               catalogs {"en" {"orders.cart/title" "Cart"} "de" {"orders.cart/title" "Warenkorb"}}
+               page     (fn [language] {:name :orders/list :page {:address "/orders" :title nil :name :orders/list}
+                                        :path-params {} :query {} :query-errors nil :fragment nil :language language})
+               drawn    (atom [])]
+           (set! dictionary/fetch-catalog! (fn [_ language] (js/Promise.resolve (get catalogs language))))
+           (start-following! send-message! {:orders/list {:address "/orders" :title nil}} {:orders/list (fn [_] [])}
+                             {:languages {:dictionary {:languages [{:code "en" :name "English"} {:code "de" :name "Deutsch"}] :default "en" :cookie-name nil :preview-languages []
+                                                       :fallback-language "en" :catalogs-path "i18n"}
+                                          :language-of-page "en"}})
+           (rf/clear-subscription-cache!)
+           (let [view (ratom/make-reaction #(swap! drawn conj (parlor/tr :orders.cart/title {})) :auto-run true)]
+             @view
+             (after-ms 20
+                       (fn []
+                         (ratom/flush!)
+                         (arrive! (page "de") :keep)
+                         (after-ms 20
+                                   (fn []
+                                     (ratom/flush!)
+                                     (is (= [nil "Cart" "Warenkorb"] (dedupe @drawn))
+                                         "nil before the catalog, then each language's, drawn again by itself")
+                                     (ratom/dispose! view)
+                                     (set! dictionary/fetch-catalog! fetch)
+                                     (done)))))))))
+
+(deftest tr-is-only-for-views
+  (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))]
+    (start! send-message! {})
+    (rf/reg-event-fx :test/text-in-an-event (fn [_ _] {:db {:text (parlor/tr :orders.cart/add {})}}))
+    (is (= :parlor/tr-outside-a-view (:type (thrown-data #(rf/dispatch-sync [:test/text-in-an-event]))))
+        "in an event handler")
+    (is (= :parlor/tr-outside-a-view (:type (thrown-data #(parlor/tr :orders.cart/add {}))))
+        "in plain code")
+    (is (= "orders.cart/add" (drawn-tr :orders.cart/add {})) "in a view")))
 
 (deftest without-languages-a-text-is-its-key
   (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))]
     (start! send-message! {})
     (is (true? (sub [:parlor/texts-ready?])))
-    (is (= "orders.cart/add" (sub [:parlor/text :orders.cart/add {}])))))
+    (is (= "orders.cart/add" (drawn-tr :orders.cart/add {})))))
 
 (deftest signed-out-is-told-once-with-the-page-to-return-to
   (async done

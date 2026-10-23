@@ -1,5 +1,7 @@
 # `(parlor/tr key args)` is the text call; the root waits for the first catalogs
 
+> **Changed in part** by [tr is the one text call in the browser, and it is called only in views](2026-10-23-tr-is-called-only-in-views.md) (2026-10-23, built on tidy-up, not released): `tr` works only while a view draws and throws elsewhere, `:parlor/tr-outside-a-view`; `[:parlor/text …]` leaves the api.
+
 > The user's decision, 2026-10-23: "we want (tr ...)", on both sides (dictionary's [Texts are `(tr key args)`, in the language bound around them](https://github.com/p4ulcristian/dictionary/blob/main/decisions/2026-10-23-texts-are-tr-under-a-bound-language.md)). Since v0.8.0. Changes in part [Texts are re-frame data, in the page's language](2026-10-23-texts-are-re-frame-data-in-the-pages-language.md): its "The price" (a text is a subscription, not a function call; a page draws its texts after one fetch).
 
 **Decision:**

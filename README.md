@@ -33,8 +33,8 @@ the app (groundwork) makes them and hands them to the start.
 | `:on-signed-out` (a start setting) | the first answer (a question's or a write's) refused with `:signed-out-reason` dispatches it once per start, with the page to return to after signing in: `[:app/to-login {:page :orders/page :params {…} :query {…}}]` |
 | `[:parlor/can-i? action scope]` (sub) | from the `:actions-question`'s answer, checked by `:actions-answer-shape` (doorman's `my-actions-answer-shape`) through the app's `:wire`; `scope` is `[kind id]` or a list of them |
 | `[:parlor/page]` (sub) `[:parlor/go-to name path-params query]` | the page, `{:name :page :path-params :query :query-errors :fragment :language}` or nil; a move, keeping the language. Entering a page owns the questions it declares (`:questions-of-pages`), leaving releases them; a change of only the query keeps what it still asks, and the scroll. Each move scrolls once drawn: top, the `#fragment`, or where Back left it |
-| `tr` | `(parlor/tr :orders.cart/add {:count 3})`: a message in the page's language; in a screen it is `[:parlor/text …]`, elsewhere it reads the db as it is |
-| `[:parlor/text key args]` (sub) `[:parlor/texts-ready?]` (sub) | a message in the page's language (dictionary's catalogs, fetched by parlor; the fallback's, else the key's name); a swapped catalog draws again; nil until the first is in |
+| `tr` | `(parlor/tr :orders.cart/add {:count 3})`: the one text call, a message in the page's language (dictionary's catalogs, fetched by parlor; the fallback's, else the key's name); only while a view draws: it subscribes, so a new language or catalog draws the view again; anywhere else (an event, an effect) it throws, `:parlor/tr-outside-a-view`: an event stores the key and its args, the view calls `tr` ([why](decisions/2026-10-23-tr-is-called-only-in-views.md)); nil until the first catalogs are in, never inside the root `mount-root!` draws |
+| `[:parlor/texts-ready?]` (sub) | whether the first catalogs are in (always, without `:languages`) |
 | `[:parlor/hold message]` `[:parlor/let-go]` | unsaved changes: while held, leaving the page asks the person the message (the browser's confirm), closing the tab the browser's own question |
 | `show-page` | `[parlor/show-page draw-page]`: the page, or the `:placeholder` while the page's `:module` loads (`:load-module!`, on the way in) |
 | `mount-root!` | `[root]` drawn into the element with this id once the first catalogs are in (the element keeps its splash until then); again after a save; before `:parlor/start` it throws, `:parlor/mounted-before-start` |
@@ -72,25 +72,39 @@ and send throw `:parlor/asked-before-start`, naming the messages.
   (let [{:keys [status data error]} @(rf/subscribe [:parlor/answer [:orders/of-shop {:shop/id shop-id}]])
         can-move?                   @(rf/subscribe [:parlor/can-i? :orders/move [:shop shop-id]])]
     (case status
-      :loading [:p "Loading orders…"]
-      :error   [:p (parlor/tr (:bridge/refused error) (:bridge/data error)) [:button {:on-click #(rf/dispatch [:parlor/ask-again [:orders/of-shop {:shop/id shop-id}]])} "Try again"]]
+      :loading [:p (parlor/tr :orders/loading {})]
+      :error   [:p (parlor/tr (:bridge/refused error) (:bridge/data error))   ; the reason is the key, its data the args
+                [:button {:on-click #(rf/dispatch [:parlor/ask-again [:orders/of-shop {:shop/id shop-id}]])} (parlor/tr :orders/try-again {})]]
       [:<>
-       (when (= :refresh-error status) [:p.stale "Couldn't refresh; showing the last orders."])
+       (when (= :refresh-error status) [:p.stale (parlor/tr :orders/not-refreshed {})])
        (into [:ul]
              (for [{:order/keys [id number stage]} data]
                [:li number " " (name stage)
                 (when (and can-move? (= :coating stage))
                   [:button {:on-click #(rf/dispatch [:parlor/send [:orders/move {:order/id id :order/stage :curing}]
-                                                     [:shop/order-moved]])}
-                   "To curing"])]))])))
+                                                     [:shop/order-moved id]])}
+                   (parlor/tr :orders/to-curing {})])]))])))
+
+;; an event stores a text's key and its args, never the text: tr throws outside a view
+(rf/reg-event-db :shop/order-moved
+                 (fn [db [_ order-id {:keys [status error]}]]
+                   (cond-> db
+                     (= :error status) (assoc-in [:toasts order-id] {:text (:bridge/refused error) :args (:bridge/data error)}))))
+
+;; the view that shows it calls tr, so it is drawn in the page's language, and again when it changes
+(defn toast [{:keys [text args]}]
+  [:div.toast (parlor/tr text args)])
 
 (defn draw-page [{:keys [name path-params]}]
   (case name
     :orders/page [orders-page (parse-uuid (:shop-id path-params))]
     [:p "No such page."]))
 
+(rf/reg-sub :shop/toasts (fn [db _] (:toasts db)))
+
 (defn root []
-  [:main [:nav [:a {:href "/about"} "About"]]   ; a plain link moves in the app
+  [:main [:nav [:a {:href "/about"} (parlor/tr :nav/about {})]]   ; a plain link moves in the app
+   (into [:aside] (for [[order-id shown] @(rf/subscribe [:shop/toasts])] ^{:key order-id} [toast shown]))
    [parlor/show-page draw-page]])
 
 (parlor/mount-root! "app" root)
