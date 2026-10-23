@@ -8,13 +8,13 @@ questions it shows; parlor keeps their answers in re-frame's db with one of
 four statuses, has doorbell watch them (asked again when a table they read
 changes), sends writes and asks again what they touched, says what the
 person may do, and puts the page the address bar leads to
-([mailroom](https://github.com/p4ulcristian/mailroom)'s routing) in the db.
+([bridge](https://github.com/p4ulcristian/bridge)'s routing) in the db.
 
 ```clojure
 io.github.p4ulcristian/parlor {:git/tag "v0.7.5" :git/sha "4e8b436"}
 ```
 
-Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, mailroom, dictionary and malli; react
+Needs re-frame 1.4.7, Reagent 2.0.1, doorbell, bridge, dictionary and malli; react
 and react-dom come from the app's `package.json`. Browser only, one public
 namespace, `parlor.api`, which registers the events and subscriptions
 below when it loads. parlor makes no store, no send function and no wire:

@@ -1,6 +1,6 @@
 (ns parlor.pages
-  "The page the address bar leads to, as re-frame data, from mailroom's
-   routing. On every move the db's :parlor :page becomes mailroom's page,
+  "The page the address bar leads to, as re-frame data, from bridge's
+   routing. On every move the db's :parlor :page becomes bridge's page,
    {:name :page :path-params :query :query-errors :fragment :language}, or
    nil for an address no page has (its query read by the start's
    :query-shapes-of-pages, its language by dictionary's rules, the
@@ -11,7 +11,7 @@
    Moving is an event, [:parlor/go-to name path-params query]; a move
    keeps the language.
 
-   Scrolling: once the page is drawn (Reagent's after-render), as mailroom
+   Scrolling: once the page is drawn (Reagent's after-render), as bridge
    tells: a new page from the top or at its #fragment, a change of only the
    query where it is, Back and Forward where that entry was left.
 
@@ -28,7 +28,7 @@
    the page, and the scroll waits for the page."
   (:require
    [dictionary.api :as dictionary]
-   [mailroom.api :as mailroom]
+   [bridge.api :as bridge]
    [parlor.answers :as answers]
    [parlor.texts :as texts]
    [re-frame.core :as rf]
@@ -57,7 +57,7 @@
   (when (has-window?) (js/window.removeEventListener "beforeunload" warn-before-closing)))
 
 (defn may-leave?
-  "mailroom's :may-leave?: yes when nothing is held; else the person is
+  "bridge's :may-leave?: yes when nothing is held; else the person is
    asked the message, and yes lets go."
   []
   (if-let [message @holding]
@@ -83,8 +83,8 @@
 ;; -----------------------------------------------------------------------------
 ;; Following the address bar
 
-(defn make-languages-for-mailroom
-  "mailroom's :languages from the start's: dictionary's functions over its
+(defn make-languages-for-bridge
+  "bridge's :languages from the start's: dictionary's functions over its
    settings, and the language the page came in; nil for nil."
   [languages]
   (when-let [{settings :dictionary :keys [language-of-page]} languages]
@@ -94,19 +94,19 @@
 
 (rf/reg-fx :parlor/-follow-address
            (fn [{:keys [pages query-shapes-of-pages languages]}]
-             (mailroom/start-following-address! pages {:on-page               #(rf/dispatch [:parlor/-arrived %1 %2])
+             (bridge/start-following-address! pages {:on-page               #(rf/dispatch [:parlor/-arrived %1 %2])
                                                        :query-shapes-of-pages query-shapes-of-pages
                                                        :may-leave?            may-leave?
-                                                       :languages             (make-languages-for-mailroom languages)})))
+                                                       :languages             (make-languages-for-bridge languages)})))
 
 (rf/reg-fx :parlor/-go-to
            (fn [[page-name path-params query]]
-             (mailroom/go-to-page! page-name path-params query)))
+             (bridge/go-to-page! page-name path-params query)))
 
 (defn scroll-after-drawing!
-  "Scrolls as mailroom told, once Reagent has drawn the page."
+  "Scrolls as bridge told, once Reagent has drawn the page."
   [scroll]
-  (reagent/after-render #(mailroom/scroll-as-told! scroll)))
+  (reagent/after-render #(bridge/scroll-as-told! scroll)))
 
 (rf/reg-fx :parlor/-scroll (fn [scroll] (scroll-after-drawing! scroll)))
 

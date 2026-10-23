@@ -31,7 +31,7 @@
   (:require
    [clojure.string :as str]
    [doorbell.api :as doorbell]
-   [mailroom.api :as mailroom]
+   [bridge.api :as bridge]
    [re-frame.core :as rf]))
 
 (def no-answer
@@ -40,12 +40,12 @@
   {:error "No answer from the server."})
 
 (defn failed?
-  "Whether an answer is a failure rather than data: mailroom's error
-   answers (mailroom's is-error-answer?: {:error …} or {:errors …} and
-   nothing else, or an answer carrying :mailroom/errors), doorbell's
+  "Whether an answer is a failure rather than data: bridge's error
+   answers (bridge's is-error-answer?: {:error …} or {:errors …} and
+   nothing else, or an answer carrying :bridge/errors), doorbell's
    no-answer among them."
   [answer]
-  (mailroom/is-error-answer? answer))
+  (bridge/is-error-answer? answer))
 
 ;; -----------------------------------------------------------------------------
 ;; The rules, as plain functions over parlor's part of the db
@@ -153,7 +153,7 @@
   "The tables a write's notes say it read and wrote, or :any when it
    noted none (an answer refused before its steps ran) or \"any\"."
   [answer message-name]
-  (let [tables (get-in answer [:mailroom/notes message-name :tables])]
+  (let [tables (get-in answer [:bridge/notes message-name :tables])]
     (if (or (nil? tables) (= "any" tables)) :any tables)))
 
 ;; -----------------------------------------------------------------------------

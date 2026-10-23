@@ -22,7 +22,7 @@
    :store: doorbell's question store (doorbell.api/make-question-store);
    parlor keeps its answers from it.
    :send-write!: (fn [message once-key]) -> a promise of the answer keyed
-   by name, with :mailroom/notes beside it: what :parlor/send sends a
+   by name, with :bridge/notes beside it: what :parlor/send sends a
    write through, with its one-time key, a fresh random id per send, the
    same on each retry of that send (groundwork: the store's send function with
    the key in the idempotency-key header). A promise that fails means no
@@ -30,7 +30,7 @@
    :retry-writes: {:times n :wait-ms ms}: a send that got no answer is sent
    again, with the same key, up to :times more, :wait-ms apart, so the
    server saves it once; {:times 0 …} for never.
-   :pages: the pages the server put in the page, for mailroom's
+   :pages: the pages the server put in the page, for bridge's
    start-following-address!.
    :questions-of-pages: every page's declaration of the questions it
    needs while it is open, by page name, one for each of :pages and no
@@ -50,7 +50,7 @@
    nil for none.
    :query-shapes-of-pages: every page's query shape, by page name, one for
    each of :pages and no other: a malli map the query's text values are
-   read by (mailroom's), or nil to keep them text.
+   read by (bridge's), or nil to keep them text.
    :languages: nil without languages, or {:dictionary settings
    :language-of-page \"en\"}: dictionary's settings (the server's, from
    the page) and the language the page came in; an address's prefix says

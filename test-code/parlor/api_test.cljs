@@ -1,13 +1,13 @@
 (ns parlor.api-test
   "parlor on node, over doorbell's real question store asking through a
    stand-in send-message! that answers at once, notes the tables each
-   message read, and fails a name on demand. mailroom's routing, which
+   message read, and fails a name on demand. bridge's routing, which
    needs a browser's history, is replaced where a test follows pages."
   (:require
    [cljs.test :refer [async deftest is testing]]
    [dictionary.api :as dictionary]
    [doorbell.api :as doorbell]
-   [mailroom.api :as mailroom]
+   [bridge.api :as bridge]
    [parlor.api :as parlor]
    [parlor.can-i :as can-i]
    [parlor.pages :as pages]
@@ -44,7 +44,7 @@
                                                  {:error "Not found."}
                                                  (answer-of message-name n))}
                            (contains? tables-by-name message-name)
-                           (assoc :mailroom/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
+                           (assoc :bridge/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
     {:asked         asked
      :failing       failing
      :offline       offline
@@ -80,7 +80,7 @@
   (reset! rf-db/app-db {})
   (reset! heard [])
   (let [store (doorbell/make-question-store send-message! store-settings)]
-    (with-redefs [mailroom/start-following-address! (fn [_ _] nil)]
+    (with-redefs [bridge/start-following-address! (fn [_ _] nil)]
       (rf/dispatch-sync [:parlor/start (merge {:store             store
                                                :send-write!       (fn [message _] (send-message! message))
                                                :retry-writes      {:times 0 :wait-ms 0}
@@ -393,7 +393,7 @@
                           :path-params {:order-id "7"} :query {}}]
            (reset! rf-db/app-db {})
            (reset! heard [])
-           (with-redefs [mailroom/start-following-address! (fn [pages {:keys [on-page query-shapes-of-pages may-leave? languages]}]
+           (with-redefs [bridge/start-following-address! (fn [pages {:keys [on-page query-shapes-of-pages may-leave? languages]}]
                                                              (is (= #{:orders/page :orders/order} (set (keys pages))))
                                                              (is (= {:orders/page [:map [:tab :keyword]] :orders/order nil} query-shapes-of-pages))
                                                              (is (fn? may-leave?))
@@ -401,7 +401,7 @@
                                                                  "dictionary's rules, from its settings")
                                                              (is (= "en" (:language-of-page languages)))
                                                              (reset! on-page* #(on-page % :keep)))
-                         mailroom/scroll-as-told!          (fn [scroll] (swap! scrolled conj scroll))]
+                         bridge/scroll-as-told!          (fn [scroll] (swap! scrolled conj scroll))]
              (rf/dispatch-sync [:parlor/start {:store             store
                                                :send-write!       (fn [message _] (send-message! message))
                                                :retry-writes      {:times 0 :wait-ms 0}
@@ -444,20 +444,20 @@
                                                        [:moved {:from order :to nil}]]
                                                       @heard))
                                                (let [moved (atom nil)]
-                                                 (with-redefs [mailroom/go-to-page! (fn [& args] (reset! moved (vec args)))]
+                                                 (with-redefs [bridge/go-to-page! (fn [& args] (reset! moved (vec args)))]
                                                    (rf/dispatch-sync [:parlor/go-to :orders/order {:order-id "8"} {:tab :notes}]))
                                                  (is (= [:orders/order {:order-id "8"} {:tab :notes}] @moved)))
                                                (done))))))))))
 
 (defn- start-following!
   "A started parlor over these pages, following a stand-in address bar:
-   returns (fn [page scroll]), mailroom's on-page."
+   returns (fn [page scroll]), bridge's on-page."
   [send-message! pages questions-of-pages more-settings]
   (reset! rf-db/app-db {})
   (reset! heard [])
   (let [on-page (atom nil)
         store   (doorbell/make-question-store send-message! store-settings)]
-    (with-redefs [mailroom/start-following-address! (fn [_ options] (reset! on-page (:on-page options)))]
+    (with-redefs [bridge/start-following-address! (fn [_ options] (reset! on-page (:on-page options)))]
       (rf/dispatch-sync [:parlor/start (merge {:store                 store
                                                :send-write!           (fn [message _] (send-message! message))
                                                :retry-writes          {:times 0 :wait-ms 0}
@@ -505,7 +505,7 @@
                                    (is (= {:orders/all 1 :orders/of-stage 2} @asked)
                                        "the page stays; what it still asks is kept, the new filter asked")
                                    (is (= {:stage :curing} (:query (sub [:parlor/page]))))
-                                   (is (= [:top :keep] @scrolls) "scrolled as mailroom told")
+                                   (is (= [:top :keep] @scrolls) "scrolled as bridge told")
                                    (stop)
                                    (done))))))))
 
