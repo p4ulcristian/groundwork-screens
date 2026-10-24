@@ -1,23 +1,21 @@
 ;; groundwork-screens: the browser's screens over groundwork-live-updates's question store, in re-frame,
-;; drawn with Reagent. Browser only: source-code/groundwork_screens/ holds .cljs files.
+;; drawn with Reagent (in groundwork-screens.views alone), and the address bar they follow.
+;; Browser only: source-code/groundwork_screens/ holds .cljs files.
 {:paths ["source-code"]
 
  :deps
  {;; the app's state and its events and subscriptions
   re-frame/re-frame              {:mvn/version "1.4.7"}
   ;; the root screen drawn into the page, with React (react and react-dom
-  ;; come from the app's package.json)
+  ;; come from the app's package.json); groundwork-screens.views only
   reagent/reagent                {:mvn/version "2.0.1"}
   ;; the question store groundwork-screens keeps its answers from, and the changes a
   ;; write's answer says it touched
-  ;; on its tidy-up branch, not released: an ask with no answer is bridge's :groundwork-bridge/no-answer
   io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.5.10" :git/sha "17083cd"}
-  ;; the address bar followed into re-frame, and moves to a page; an
-  ;; answer told from a refusal (it brings groundwork-shaped-json, which the app's send-message! carries)
-  ;; on its tidy-up branch, not released: a refusal is a named reason, declared on its handler;
-  ;; send-message! takes :keep-alive?; go-to-page! takes :push or :replace; :may-leave? is
-  ;; asked with the move, and finish-move! finishes one it held back; an sse line tells its break
-  io.github.p4ulcristian/groundwork-bridge {:git/tag "v0.7.9" :git/sha "8967097"}
+  ;; an answer told from a refusal, groundwork-steps's shape (the sends are the app's, handed in)
+  io.github.p4ulcristian/groundwork-steps {:git/tag "v0.1.0" :git/sha "ed9458e"}
+  ;; the address bar followed (groundwork-screens.routes): the pages matched and their addresses made
+  metosin/reitit-frontend        {:mvn/version "0.11.0"}
   ;; the language of an address, and an address made in a language
   ;; on its tidy-up branch, not released: a key names its ICU argument with - read as _;
   ;; the browser's make-text, which tr calls

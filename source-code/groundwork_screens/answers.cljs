@@ -23,12 +23,12 @@
      the one-time key made by the caller (make-once-key) and kept with its
      draft, so a second Save of the same draft is the same write; and
      whether the request finishes after the page closes. A send answered
-     :groundwork-bridge/no-answer (bridge's: no answer came) is sent again with the
+     :groundwork-steps/no-answer (groundwork-steps's: no answer came) is sent again with the
      same key, the start's :retry-writes, and the server saves it once;
      any other refusal is the server's answer. Its event
      gets {:status :ready :data answer} or {:status :error :error answer},
-     the refusal as bridge gives it, {:groundwork-bridge/refused … :groundwork-bridge/data …
-     :groundwork-bridge/request-id …}. A good answer asks again, through groundwork-live-updates,
+     the refusal as the send gives it, {:groundwork-steps/refused … :groundwork-steps/data …
+     :groundwork-steps/request-id …}. A good answer asks again, through groundwork-live-updates,
      every watched question that read a table the write's notes name, as a
      change heard on the sse line does; groundwork-live-updates's ring for the same change
      comes too.
@@ -41,28 +41,29 @@
   (:require
    [clojure.string :as str]
    [groundwork-live-updates.api :as live-updates]
-   [groundwork-bridge.api :as bridge]
+   [groundwork-steps.api :as steps]
    [groundwork-screens.settings :as settings]
    [re-frame.core :as rf]))
 
 (defn failed?
-  "Whether an answer is a refusal rather than data: bridge's
-   is-error-answer?, a map carrying :groundwork-bridge/refused (the server's reasons,
-   and bridge's own in the browser: :groundwork-bridge/no-answer, :groundwork-bridge/unfit)."
+  "Whether an answer is a refusal rather than data: groundwork-steps's
+   is-error-answer?, a map carrying :groundwork-steps/refused (the server's
+   reasons, and the browser's own: :groundwork-steps/no-answer,
+   :groundwork-steps/unfit)."
   [answer]
-  (bridge/is-error-answer? answer))
+  (steps/is-error-answer? answer))
 
 (defn is-no-answer?
-  "Whether an answer is bridge's :groundwork-bridge/no-answer: no answer came, so a
+  "Whether an answer is groundwork-steps's :groundwork-steps/no-answer: no answer came, so a
    write may be sent again."
   [answer]
-  (= :groundwork-bridge/no-answer (:groundwork-bridge/refused answer)))
+  (= :groundwork-steps/no-answer (:groundwork-steps/refused answer)))
 
 (defn is-signed-out?
   "Whether an answer is refused with the start's :signed-out-reason (nil:
    never)."
   [answer signed-out-reason]
-  (and (some? signed-out-reason) (failed? answer) (= signed-out-reason (:groundwork-bridge/refused answer))))
+  (and (some? signed-out-reason) (failed? answer) (= signed-out-reason (:groundwork-steps/refused answer))))
 
 (defn find-page-to-return-to
   "The page the person is on, for :on-signed-out: {:page name :params
@@ -189,7 +190,7 @@
   "The tables a write's notes say it read and wrote, or :any when it
    noted none (an answer refused before its steps ran) or \"any\"."
   [answer message-name]
-  (let [tables (get-in answer [:groundwork-bridge/notes message-name :tables])]
+  (let [tables (get-in answer [:groundwork-steps/notes message-name :tables])]
     (if (or (nil? tables) (= "any" tables)) :any tables)))
 
 ;; -----------------------------------------------------------------------------
@@ -255,9 +256,9 @@
 (defn send-with-retries
   "(send-write! message send-options), and again with the same options,
    the same key among them, while the message's name is answered
-   :groundwork-bridge/no-answer, up to times more, wait-ms apart. A promise of the
+   :groundwork-steps/no-answer, up to times more, wait-ms apart. A promise of the
    last answer. A promise send-write! fails is passed on as it is:
-   bridge's send-message! fails none for want of an answer, so it is a
+   groundwork-bridge's send-message! fails none for want of an answer, so it is a
    bug, not a refusal."
   [send-write! message send-options {:keys [times wait-ms] :as retry-writes}]
   (let [message-name (key (first message))]

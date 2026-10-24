@@ -1,5 +1,7 @@
 # A page has its query and language, scrolls once drawn, holds unsaved changes, and loads its module on the way in
 
+> **Changed in part** by [groundwork-screens follows the address bar itself, requires no wire, and keeps Reagent in its views](2026-10-24-groundwork-screens-follows-the-address-bar-and-keeps-reagent-in-its-views.md) (2026-10-24): the routing, `finish-move!` and the scroll are groundwork-screens's own (`groundwork-screens.routes`); the scroll after a render and `show-page` are in `groundwork-screens.views`.
+
 > **Changed in part** by [A move says whether it adds a history entry or replaces the one shown](2026-10-23-a-move-says-whether-it-adds-a-history-entry.md) (2026-10-23, built on tidy-up, not released): `[:parlor/go-to name path-params query way]`, `:push` or `:replace`; and by [The unsaved-changes hold asks with the app's own dialog](2026-10-23-the-hold-asks-with-the-apps-own-dialog.md) (2026-10-23, built on tidy-up, not released): the hold writes out how it asks, `:ask-with :browser-confirm` or the app's event, whose Leave is `[:parlor/leave-anyway move]`.
 
 > **Changed in part** by [The family and its composer are groundwork](https://github.com/p4ulcristian/groundwork/blob/Starting-from-the-bottom/decisions/2026-10-23-the-family-and-its-composer-are-groundwork.md) (2026-10-23): manor, the family, and house, the composer, are both named groundwork now.

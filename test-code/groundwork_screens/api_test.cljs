@@ -1,17 +1,18 @@
 (ns groundwork-screens.api-test
   "groundwork-screens on node, over groundwork-live-updates's real question store asking through a
    stand-in send-message! that answers at once, notes the tables each
-   message read, and fails a name on demand. bridge's routing, which
+   message read, and fails a name on demand. groundwork-screens.routes, which
    needs a browser's history, is replaced where a test follows pages."
   (:require
    [cljs.test :refer [async deftest is testing]]
    [groundwork-languages.api :as languages]
    [groundwork-live-updates.api :as live-updates]
-   [groundwork-bridge.api :as bridge]
+   [groundwork-screens.routes :as routes]
    [groundwork-screens.answers]
    [groundwork-screens.api :as screens]
    [groundwork-screens.can-i :as can-i]
    [groundwork-screens.pages :as pages]
+   [groundwork-screens.views :as views]
    [re-frame.core :as rf]
    [re-frame.db :as rf-db]
    [reagent.ratom :as ratom]
@@ -27,22 +28,22 @@
 (def ^:private store-settings {:gather-changes-ms 10 :keep-unwatched-answers-ms 1000})
 
 (def ^:private not-found
-  "A refusal as bridge's send-message! gives it."
-  {:groundwork-bridge/refused :shop/gone :groundwork-bridge/data nil :groundwork-bridge/request-id "r-1"})
+  "A refusal as the send gives it, groundwork-steps's shape."
+  {:groundwork-steps/refused :shop/gone :groundwork-steps/data nil :groundwork-steps/request-id "r-1"})
 
 (def ^:private no-answer
-  "bridge's send-message! when no answer came."
-  {:groundwork-bridge/refused :groundwork-bridge/no-answer :groundwork-bridge/data {:http-status nil}})
+  "groundwork-steps's no-answer, as the send gives it when no answer came."
+  {:groundwork-steps/refused :groundwork-steps/no-answer :groundwork-steps/data {:http-status nil}})
 
 (def ^:private signed-out
-  {:groundwork-bridge/refused :groundwork-access/signed-out :groundwork-bridge/data nil :groundwork-bridge/request-id "r-2"})
+  {:groundwork-steps/refused :groundwork-access/signed-out :groundwork-steps/data nil :groundwork-steps/request-id "r-2"})
 
 (defn- make-stand-in-server
   "A send-message! counting asks by name and answering (answer-of name n),
    noting the tables tables-by-name says the name reads; a name in the
    failing atom is refused (not-found), one in the signed-out atom
-   refused signed-out, one in the offline atom gets no answer, as bridge's
-   send-message! says it: :groundwork-bridge/no-answer."
+   refused signed-out, one in the offline atom gets no answer, as groundwork-bridge's
+   send-message! says it: :groundwork-steps/no-answer."
   [tables-by-name answer-of]
   (let [asked     (atom {})
         failing   (atom #{})
@@ -59,7 +60,7 @@
                                                      (contains? @out message-name)     signed-out
                                                      :else                             (answer-of message-name n))}
                            (contains? tables-by-name message-name)
-                           (assoc :groundwork-bridge/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
+                           (assoc :groundwork-steps/notes {message-name {:tables (get tables-by-name message-name)}}))))))]
     {:asked         asked
      :failing       failing
      :offline       offline
@@ -97,7 +98,7 @@
 (rf/reg-event-db :test/heard (fn [db [_ & more]] (swap! heard conj (vec more)) db))
 
 (def ^:private a-move
-  "A move bridge asks :may-leave? about: a link's."
+  "A move the routes ask :may-leave? about: a link's."
   {:address "/orders/7" :way :push :index nil})
 
 (defn- start!
@@ -108,7 +109,7 @@
   (reset! rf-db/app-db {})
   (reset! heard [])
   (let [store (live-updates/make-question-store send-message! store-settings)]
-    (with-redefs [bridge/start-following-address! (fn [_ _] nil)]
+    (with-redefs [routes/start-following-address! (fn [_ _] nil)]
       (rf/dispatch-sync [:groundwork-screens/start (merge {:store             store
                                                :send-write!       (fn [message _] (send-message! message))
                                                :retry-writes      {:times 0 :wait-ms 0}
@@ -474,7 +475,7 @@
                           :path-params {:order-id "7"} :query {}}]
            (reset! rf-db/app-db {})
            (reset! heard [])
-           (with-redefs [bridge/start-following-address! (fn [pages {:keys [on-page query-shapes-of-pages may-leave? languages]}]
+           (with-redefs [routes/start-following-address! (fn [pages {:keys [on-page query-shapes-of-pages may-leave? languages]}]
                                                              (is (= #{:orders/page :orders/order} (set (keys pages))))
                                                              (is (= {:orders/page [:map [:tab :keyword]] :orders/order nil} query-shapes-of-pages))
                                                              (is (fn? may-leave?))
@@ -482,7 +483,7 @@
                                                                  "groundwork-languages's rules, from its settings")
                                                              (is (= "en" (:language-of-page languages)))
                                                              (reset! on-page* #(on-page % :keep)))
-                         bridge/scroll-as-told!          (fn [scroll] (swap! scrolled conj scroll))]
+                         routes/scroll-as-told!          (fn [scroll] (swap! scrolled conj scroll))]
              (rf/dispatch-sync [:groundwork-screens/start {:store             store
                                                :send-write!       (fn [message _] (send-message! message))
                                                :retry-writes      {:times 0 :wait-ms 0}
@@ -527,20 +528,20 @@
                                                        [:moved {:from order :to nil}]]
                                                       @heard))
                                                (let [moved (atom nil)]
-                                                 (with-redefs [bridge/go-to-page! (fn [& args] (reset! moved (vec args)))]
+                                                 (with-redefs [routes/go-to-page! (fn [& args] (reset! moved (vec args)))]
                                                    (rf/dispatch-sync [:groundwork-screens/go-to :orders/order {:order-id "8"} {:tab :notes} :replace]))
                                                  (is (= [:orders/order {:order-id "8"} {:tab :notes} :replace] @moved) "the way passed on as written"))
                                                (done))))))))))
 
 (defn- start-following!
   "A started groundwork-screens over these pages, following a stand-in address bar:
-   returns (fn [page scroll]), bridge's on-page."
+   returns (fn [page scroll]), the routes' on-page."
   [send-message! pages questions-of-pages more-settings]
   (reset! rf-db/app-db {})
   (reset! heard [])
   (let [on-page (atom nil)
         store   (live-updates/make-question-store send-message! store-settings)]
-    (with-redefs [bridge/start-following-address! (fn [_ options] (reset! on-page (:on-page options)))]
+    (with-redefs [routes/start-following-address! (fn [_ options] (reset! on-page (:on-page options)))]
       (rf/dispatch-sync [:groundwork-screens/start (merge {:store                 store
                                                :send-write!           (fn [message _] (send-message! message))
                                                :retry-writes          {:times 0 :wait-ms 0}
@@ -566,9 +567,9 @@
 (defn- catch-scrolls!
   "Every scroll groundwork-screens makes, into an atom, until (stop)."
   [scrolls]
-  (let [scroll-after-drawing! pages/scroll-after-drawing!]
-    (set! pages/scroll-after-drawing! #(swap! scrolls conj %))
-    #(set! pages/scroll-after-drawing! scroll-after-drawing!)))
+  (let [scroll-after-drawing! views/scroll-after-drawing!]
+    (set! views/scroll-after-drawing! #(swap! scrolls conj %))
+    #(set! views/scroll-after-drawing! scroll-after-drawing!)))
 
 (deftest a-change-of-only-the-query-keeps-what-it-still-asks
   (async done
@@ -590,7 +591,7 @@
                                    (is (= {:orders/all 1 :orders/of-stage 2} @asked)
                                        "the page stays; what it still asks is kept, the new filter asked")
                                    (is (= {:stage :curing} (:query (sub [:groundwork-screens/page]))))
-                                   (is (= [:top :keep] @scrolls) "scrolled as bridge told")
+                                   (is (= [:top :keep] @scrolls) "scrolled as the routes told")
                                    (stop)
                                    (done))))))))
 
@@ -635,7 +636,7 @@
                        (testing "Stay does nothing: still held"
                          (is (false? (pages/may-leave? a-move))))
                        (testing "Leave: let go, and the move finished as it would have gone"
-                         (with-redefs [bridge/finish-move! (fn [move] (swap! finished conj move))]
+                         (with-redefs [routes/finish-move! (fn [move] (swap! finished conj move))]
                            (rf/dispatch-sync [:groundwork-screens/leave-anyway a-move]))
                          (is (= [a-move] @finished))
                          (is (true? (pages/may-leave? a-move)) "let go: not asked again"))
@@ -691,12 +692,12 @@
            (arrive! page :top)
            (is (= ["admin"] @loads) "loaded on the way in")
            (rf/clear-subscription-cache!)
-           (is (= [page :loading] (rest (pages/show-page draw))) "the placeholder meanwhile, with the page")
+           (is (= [page :loading] (rest (views/show-page draw))) "the placeholder meanwhile, with the page")
            (is (= [] @scrolls) "the scroll waits for the page")
            (after-ms 60
                      (fn []
                        (rf/clear-subscription-cache!)
-                       (is (= [draw page] (pages/show-page draw)) "then the page")
+                       (is (= [draw page] (views/show-page draw)) "then the page")
                        (is (= [:top] @scrolls) "scrolled once the page could be drawn")
                        (arrive! page :keep)
                        (is (= ["admin"] @loads) "loaded once")

@@ -8,7 +8,7 @@
    [re-frame.registrar :as registrar]))
 
 (deftest the-function-names
-  (is (= '#{start-settings-shape show-page mount-root! tr make-once-key find-answer}
+  (is (= '#{start-settings-shape show-page mount-root! tr make-once-key find-answer make-address-of-page}
          (set (keys (ns-publics 'groundwork-screens.api))))))
 
 (defn- public-screens-names [kind]

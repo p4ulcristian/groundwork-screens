@@ -1,6 +1,6 @@
 (ns groundwork-screens.pages
-  "The page the address bar leads to, as re-frame data, from bridge's
-   routing. On every move the db's :groundwork-screens :page becomes bridge's page,
+  "The page the address bar leads to, as re-frame data, from
+   groundwork-screens.routes. On every move the db's :groundwork-screens :page becomes its page,
    {:name :page :path-params :query :query-errors :fragment :language}, or
    nil for an address no page has (its query read by the start's
    :query-shapes-of-pages, its language by groundwork-languages's rules, the
@@ -12,9 +12,11 @@
    :push (a history entry, which Back returns from) or :replace (in place
    of the entry shown), written out; a move keeps the language.
 
-   Scrolling: once the page is drawn (Reagent's after-render), as bridge
-   tells: a new page from the top or at its #fragment, a change of only the
-   query where it is, Back and Forward where that entry was left.
+   Scrolling: once the page is drawn, as the routes tell: a new page from
+   the top or at its #fragment, a change of only the query where it is,
+   Back and Forward where that entry was left. The arrival asks for it with
+   the effect :groundwork-screens/-scroll, which groundwork-screens.views
+   runs after Reagent's next render: this namespace requires no Reagent.
 
    Unsaved changes: [:groundwork-screens/hold {:ask-with … :text :batches/unsaved
    :args {:count 3}}] while a form is dirty, how to ask and a text's key
@@ -38,13 +40,12 @@
    the page, and the scroll waits for the page."
   (:require
    [groundwork-languages.api :as languages]
-   [groundwork-bridge.api :as bridge]
    [groundwork-screens.answers :as answers]
+   [groundwork-screens.routes :as routes]
    [groundwork-screens.texts :as texts]
    [groundwork-screens.settings :as settings]
    [re-frame.core :as rf]
-   [re-frame.db :as rf-db]
-   [reagent.core :as reagent]))
+   [re-frame.db :as rf-db]))
 
 ;; -----------------------------------------------------------------------------
 ;; Unsaved changes
@@ -75,7 +76,7 @@
   (texts/find-text-or-name (:groundwork-screens @rf-db/app-db) text args))
 
 (defn may-leave?
-  "bridge's :may-leave?, asked with the move: yes when nothing is held.
+  "The routes' :may-leave?, asked with the move: yes when nothing is held.
    Held with :browser-confirm, the person is asked the held text, in the
    language shown now, and yes lets go. Held with an event, no: the move
    is held back and the event dispatched with {:move :text :args}, for the
@@ -99,7 +100,7 @@
 (rf/reg-fx :groundwork-screens/-leave-anyway
            (fn [move]
              (let-go!)
-             (bridge/finish-move! move)))
+             (routes/finish-move! move)))
 
 (rf/reg-event-fx :groundwork-screens/hold
                  (fn [_ [_ text]]
@@ -116,8 +117,8 @@
 ;; -----------------------------------------------------------------------------
 ;; Following the address bar
 
-(defn make-languages-for-bridge
-  "bridge's :languages from the start's: groundwork-languages's functions over its
+(defn make-languages-for-routes
+  "The routes' :languages from the start's: groundwork-languages's functions over its
    settings, and the language the page came in; nil for nil."
   [languages]
   (when-let [{settings :settings :keys [language-of-page]} languages]
@@ -127,21 +128,14 @@
 
 (rf/reg-fx :groundwork-screens/-follow-address
            (fn [{:keys [pages query-shapes-of-pages languages]}]
-             (bridge/start-following-address! pages {:on-page               #(rf/dispatch [:groundwork-screens/-arrived %1 %2])
-                                                       :query-shapes-of-pages query-shapes-of-pages
-                                                       :may-leave?            may-leave?
-                                                       :languages             (make-languages-for-bridge languages)})))
+             (routes/start-following-address! pages {:on-page               #(rf/dispatch [:groundwork-screens/-arrived %1 %2])
+                                                     :query-shapes-of-pages query-shapes-of-pages
+                                                     :may-leave?            may-leave?
+                                                     :languages             (make-languages-for-routes languages)})))
 
 (rf/reg-fx :groundwork-screens/-go-to
            (fn [[page-name path-params query way]]
-             (bridge/go-to-page! page-name path-params query way)))
-
-(defn scroll-after-drawing!
-  "Scrolls as bridge told, once Reagent has drawn the page."
-  [scroll]
-  (reagent/after-render #(bridge/scroll-as-told! scroll)))
-
-(rf/reg-fx :groundwork-screens/-scroll (fn [scroll] (scroll-after-drawing! scroll)))
+             (routes/go-to-page! page-name path-params query way)))
 
 (rf/reg-fx :groundwork-screens/-load-module
            (fn [{:keys [load-module! module-name]}]
@@ -207,17 +201,3 @@
               (get-in db [:groundwork-screens :modules module-name])))
 
 (rf/reg-sub :groundwork-screens/-placeholder (fn [db _] (get-in db [:groundwork-screens :started :placeholder])))
-
-(defn show-page
-  "A component: [draw-page page], the page shown (nil for an address no
-   page has); while the page's module loads, [placeholder page status]
-   instead, the start's :placeholder, status :loading, or :failed when it
-   couldn't load."
-  [draw-page]
-  (let [page        @(rf/subscribe [:groundwork-screens/page])
-        module-name (find-module-of-page page)
-        status      @(rf/subscribe [:groundwork-screens/-module-status module-name])
-        placeholder @(rf/subscribe [:groundwork-screens/-placeholder])]
-    (if (and module-name (not= :loaded status))
-      [placeholder page status]
-      [draw-page page])))

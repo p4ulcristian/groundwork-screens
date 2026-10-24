@@ -22,19 +22,19 @@
    :store: groundwork-live-updates's question store (groundwork-live-updates.api/make-question-store);
    groundwork-screens keeps its answers from it.
    :send-write!: (fn [message {:keys [once-key keep-alive?]}]) -> a
-   promise of the answer keyed by name, with :groundwork-bridge/notes beside it:
+   promise of the answer keyed by name, with :groundwork-steps/notes beside it:
    what :groundwork-screens/send sends a write through, with the send's options as
    the send wrote them out (send-options-shape), the same on each retry
-   of that send (groundwork: bridge's send-message! with the key in the
-   idempotency-key header and :keep-alive? as it is). bridge's send-message!: a
-   promise that doesn't fail for want of an answer; the network, the
-   server down, a page that isn't an answer are its :groundwork-bridge/no-answer.
-   :retry-writes: {:times n :wait-ms ms}: a send answered :groundwork-bridge/no-answer
+   of that send (groundwork: groundwork-bridge's send-message! with the key
+   in the idempotency-key header and :keep-alive? as it is). groundwork-bridge's
+   send-message!: a promise that doesn't fail for want of an answer; the network, the
+   server down, a page that isn't an answer are its :groundwork-steps/no-answer.
+   :retry-writes: {:times n :wait-ms ms}: a send answered :groundwork-steps/no-answer
    is sent again, with the same key, up to :times more, :wait-ms apart, so
    the server saves it once; {:times 0 …} for never. Any other refusal is
    the server's answer, and isn't sent again.
-   :pages: the pages the server put in the page, for bridge's
-   start-following-address!.
+   :pages: the pages the server put in the page, which the address bar is
+   followed by (groundwork-screens.routes).
    :questions-of-pages: every page's declaration of the questions it
    needs while it is open, by page name, one for each of :pages and no
    other: (fn [page]) -> questions, page {:name :page :path-params :query};
@@ -62,7 +62,7 @@
    nil for none.
    :query-shapes-of-pages: every page's query shape, by page name, one for
    each of :pages and no other: a malli map the query's text values are
-   read by (bridge's), or nil to keep them text.
+   read by (groundwork-screens.routes), or nil to keep them text.
    :languages: nil without languages, or {:settings settings
    :language-of-page \"en\"}: groundwork-languages's settings (the server's, from
    the page) and the language the page came in; an address's prefix says
@@ -200,3 +200,73 @@
       (throw (ex-info (str "[:groundwork-screens/send message on-answer options] takes its options written out, {:once-key (screens/make-once-key) :keep-alive? false}: " (pr-str errors))
                       {:type :groundwork-screens/bad-send :errors errors}))))
   options)
+
+(def following-options-shape
+  "start-following-address!'s options (groundwork-screens.routes), every key
+   required; :groundwork-screens/start writes them from its own settings.
+   :on-page: (fn [page scroll]) now and on every move.
+   :query-shapes-of-pages: by page name, every page's and no other: a
+   malli map its query's text values are read by, or nil to keep them text.
+   :may-leave?: (fn [move]) -> whether to move now, asked before a move to
+   another page with the move (move-shape); false keeps the page shown,
+   and the move may be finished later (finish-move!); nil when nothing is
+   asked.
+   :languages: nil without languages, or the functions for the language
+   prefix of an address and the language the page came in:
+   {:split-language-from-path (fn [path]) -> {:language :path},
+    :make-path-in-language (fn [path language]) -> path,
+    :language-of-page \"en\"}."
+  [:map {:closed true}
+   [:on-page fn?]
+   [:query-shapes-of-pages [:map-of :qualified-keyword :any]]
+   [:may-leave? [:maybe fn?]]
+   [:languages [:maybe [:map {:closed true}
+                        [:split-language-from-path fn?]
+                        [:make-path-in-language fn?]
+                        [:language-of-page :string]]]]])
+
+(def move-shape
+  "A move :may-leave? is asked about, which finish-move! finishes, every
+   key written out. :address: where it goes, path, query and #fragment.
+   :way: :push or :replace for a link's or go-to-page!'s move, :history
+   for Back or Forward. :index: for :history, the history entry it goes
+   to (groundwork-screens's own number of it); nil for the other two."
+  [:and
+   [:map {:closed true}
+    [:address :string]
+    [:way [:enum :push :replace :history]]
+    [:index [:maybe :int]]]
+   [:fn {:error/message "a :history move names its entry's :index; a :push or :replace one, nil"
+         :error/path    [:index]}
+    (fn [{:keys [way index]}] (= (= :history way) (int? index)))]])
+
+(defn- check-data-for-shape
+  "Returns the data; throws {:type kind :errors …} with every problem at
+   once when it doesn't fit the shape."
+  [what kind shape data]
+  (when-let [explanation (malli/explain shape data)]
+    (let [errors (malli-error/humanize explanation)]
+      (throw (ex-info (str what " have problems: " (pr-str errors))
+                      {:type kind :errors errors}))))
+  data)
+
+(defn check-following-options
+  "The options, and that :query-shapes-of-pages names every page and no
+   other: :groundwork-screens/bad-options with every problem at once."
+  [pages options]
+  (check-data-for-shape "The options" :groundwork-screens/bad-options following-options-shape options)
+  (let [declared (set (keys (:query-shapes-of-pages options)))
+        missing  (remove declared (keys pages))
+        extra    (remove (set (keys pages)) declared)]
+    (when (or (seq missing) (seq extra))
+      (throw (ex-info (str "The options have problems: :query-shapes-of-pages names "
+                           (when (seq missing) (str "no query shape for " (vec missing)))
+                           (when (and (seq missing) (seq extra)) " and ")
+                           (when (seq extra) (str "pages there are none of " (vec extra))))
+                      {:type   :groundwork-screens/bad-options
+                       :errors {:query-shapes-of-pages (vec (concat (map #(str "no query shape for the page " %) missing)
+                                                                    (map #(str "no page " % " in the pages") extra)))}}))))
+  options)
+
+(defn check-move [move]
+  (check-data-for-shape "The move" :groundwork-screens/bad-move move-shape move))

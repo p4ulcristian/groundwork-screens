@@ -1,3 +1,5 @@
+> **Changed in part** by [groundwork-screens follows the address bar itself, requires no wire, and keeps Reagent in its views](2026-10-24-groundwork-screens-follows-the-address-bar-and-keeps-reagent-in-its-views.md) (2026-10-24): `is-error-answer?` is groundwork-steps's, no longer groundwork-bridge's; the routing is groundwork-screens's own.
+
 > **Changed in part** by [The family and its composer are groundwork](https://github.com/p4ulcristian/groundwork/blob/Starting-from-the-bottom/decisions/2026-10-23-the-family-and-its-composer-are-groundwork.md) (2026-10-23): manor, the family, and house, the composer, are both named groundwork now.
 
 > **Changed in part** by ["Can I?" checks the answer by the shape it is handed](2026-10-23-can-i-checks-the-answer-by-the-shape-it-is-handed.md) (2026-10-23, v0.6.0): parlor has no `actions-answer-shape`; the start takes doorman's as `:actions-answer-shape`, and `:wire`.

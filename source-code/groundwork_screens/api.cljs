@@ -29,8 +29,8 @@
      @(rf/subscribe [:groundwork-screens/answer [:orders/one {:order/id id}]])
      ;=> {:status :loading}, {:status :ready :data …}, {:status :error :error refusal},
      ;   {:status :refresh-error :data old :error refusal}
-     ;   a refusal as bridge gives it: {:groundwork-bridge/refused :order/already-shipped :groundwork-bridge/data {…} :groundwork-bridge/request-id \"…\"}
-     (screens/tr (:groundwork-bridge/refused refusal) (:groundwork-bridge/data refusal))   ; its text: the reason is the key, its data the args
+     ;   a refusal, groundwork-steps's shape: {:groundwork-steps/refused :order/already-shipped :groundwork-steps/data {…} :groundwork-steps/request-id \"…\"}
+     (screens/tr (:groundwork-steps/refused refusal) (:groundwork-steps/data refusal))   ; its text: the reason is the key, its data the args
      (screens/find-answer db [:orders/one {:order/id id}])   ; the same, in an event handler, from its db
      (rf/dispatch [:groundwork-screens/ask-again [:orders/one {:order/id id}]])
      (rf/dispatch [:groundwork-screens/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
@@ -44,6 +44,7 @@
      @(rf/subscribe [:groundwork-screens/texts-ready?])
      @(rf/subscribe [:groundwork-screens/page])   ;=> {:name :orders/page :page … :path-params … :query … :language …} or nil
      (rf/dispatch [:groundwork-screens/go-to :orders/order {:order-id id} {} :push])   ; a query, {} for none; :push or :replace
+     [:a {:href (screens/make-address-of-page :orders/order {:order-id id} {})} \"Order\"]   ; a link, in the page's language
      (rf/dispatch [:groundwork-screens/hold {:ask-with :browser-confirm :text :batches/unsaved :args {:count 3}}])  ; the browser's confirm, in the language shown then
      (rf/dispatch [:groundwork-screens/hold {:ask-with [:batches/ask-leave] :text :batches/unsaved :args {}}])  ; the app's dialog, given {:move :text :args}
      (rf/dispatch [:groundwork-screens/leave-anyway move])   ; the dialog's Leave: the held move goes as it would have
@@ -54,17 +55,23 @@
    :groundwork-screens/ask-again, :groundwork-screens/once-answered and :groundwork-screens/send throw
    (:groundwork-screens/asked-before-start), naming the messages. Every start setting
    is required (start-settings-shape); a missing or unknown one refuses,
-   :groundwork-screens/bad-settings, with every problem at once."
+   :groundwork-screens/bad-settings, with every problem at once.
+
+   The address bar is followed here (groundwork-screens.routes): the pages
+   are drawn here, so moving between them is groundwork-screens's too. What
+   is Reagent's is in groundwork-screens.views alone; answers are told from
+   refusals by groundwork-steps's shape; the store and the send function
+   are the app's, made on its wire (groundwork's: groundwork-bridge's
+   send-message!)."
   (:require
    [groundwork-screens.answers :as answers]
    [groundwork-screens.can-i]
-   [groundwork-screens.pages :as pages]
-   [groundwork-screens.screen :as screen]
+   [groundwork-screens.pages]
+   [groundwork-screens.routes :as routes]
    [groundwork-screens.settings :as settings]
    [groundwork-screens.start]
    [groundwork-screens.texts]
-   [re-frame.core :as rf]
-   [reagent.ratom :as ratom]))
+   [groundwork-screens.views :as views]))
 
 (def start-settings-shape
   ":groundwork-screens/start's settings, every key required: :store :send-write!
@@ -98,7 +105,7 @@
    page has), or, while the page's :module loads, the start's
    [placeholder page status], status :loading or :failed."
   [draw-page]
-  [pages/show-page draw-page])
+  [views/show-page draw-page])
 
 (defn mount-root!
   "Draws [root] into the page's element with this id, with Reagent, once
@@ -108,7 +115,7 @@
    it reuses the element's React root and forgets re-frame's cached
    subscriptions."
   [element-id root]
-  (screen/mount-root! element-id root))
+  (views/mount-root! element-id root))
 
 (defn tr
   "The key's message in the page's language, args filled in ({} for none;
@@ -122,7 +129,13 @@
    the first catalogs; a view drawn outside it gets nil until they are
    in."
   [message-key args]
-  (when-not (ratom/reactive?)
-    (throw (ex-info (str "(screens/tr " message-key ") outside a view: an event stores the key and its args, and the view that shows it calls tr")
-                    {:type :groundwork-screens/tr-outside-a-view :key message-key})))
-  @(rf/subscribe [:groundwork-screens/-text message-key args]))
+  (views/tr message-key args))
+
+(defn make-address-of-page
+  "A page's address, for a link, with its path params and query ({} for
+   none; a nil value leaves its key out), in the language of the page
+   shown: (make-address-of-page :orders/page {:order-id 42} {:tab :notes})
+   -> \"/de/orders/42?tab=notes\". A name or path params no page has
+   throw, :groundwork-screens/no-page."
+  [page-name path-params query]
+  (routes/make-address-of-page page-name path-params query))

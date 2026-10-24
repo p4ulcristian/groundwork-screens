@@ -1,5 +1,7 @@
 # tr is the one text call in the browser, and it is called only in views
 
+> **Changed in part** by [groundwork-screens follows the address bar itself, requires no wire, and keeps Reagent in its views](2026-10-24-groundwork-screens-follows-the-address-bar-and-keeps-reagent-in-its-views.md) (2026-10-24): `tr` and its check live in `groundwork-screens.views`; the api hands it on.
+
 > **Changed in part** by [The unsaved-changes hold asks with the app's own dialog](2026-10-23-the-hold-asks-with-the-apps-own-dialog.md) (2026-10-23, built on tidy-up, not released): the hold is `{:ask-with … :text key :args args}`, `:ask-with` required.
 
 > The user's decision, 2026-10-23, from the tidy-up. Built on tidy-up, not released.
