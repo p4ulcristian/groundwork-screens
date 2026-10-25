@@ -11,7 +11,7 @@
   reagent/reagent                {:mvn/version "2.0.1"}
   ;; the question store groundwork-screens keeps its answers from, and the changes a
   ;; write's answer says it touched
-  io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.5.12" :git/sha "ecf7d3d"}
+  io.github.p4ulcristian/groundwork-live-updates {:git/tag "v0.5.13" :git/sha "3d86720"}
   ;; an answer told from a refusal, groundwork-steps's shape (the sends are the app's, handed in)
   io.github.p4ulcristian/groundwork-steps {:git/tag "v0.1.0" :git/sha "ed9458e"}
   ;; the address bar followed (groundwork-screens.routes): the pages matched and their addresses made
