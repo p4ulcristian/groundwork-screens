@@ -34,6 +34,7 @@
      (screens/find-answer db [:orders/one {:order/id id}])   ; the same, in an event handler, from its db
      (rf/dispatch [:groundwork-screens/ask-again [:orders/one {:order/id id}]])
      (rf/dispatch [:groundwork-screens/once-answered [:orders/one {:order/id id}] [:order-form/fill]])
+     (rf/dispatch [:groundwork-screens/once-settled [:partnerships/of-shop {:shop/id id}] [:wizard/continue]])   ; gets {:status :ready :data …} or {:status :error :error refusal}, once
      (rf/dispatch [:groundwork-screens/send [:orders/move {:order/id id :order/stage :curing}] [:orders/moved]
                    {:once-key (:once-key draft) :keep-alive? false}])   ; the key made with the draft: (screens/make-once-key)
      @(rf/subscribe [:groundwork-screens/can-i? :orders/edit [:shop shop-id]])
@@ -52,7 +53,8 @@
      [screens/show-page draw-page]     ; the page, or the placeholder while its module loads
 
    Nothing asks before :groundwork-screens/start: :groundwork-screens/watch, :groundwork-screens/own,
-   :groundwork-screens/ask-again, :groundwork-screens/once-answered and :groundwork-screens/send throw
+   :groundwork-screens/ask-again, :groundwork-screens/once-answered, :groundwork-screens/once-settled
+   and :groundwork-screens/send throw
    (:groundwork-screens/asked-before-start), naming the messages. Every start setting
    is required (start-settings-shape); a missing or unknown one refuses,
    :groundwork-screens/bad-settings, with every problem at once.

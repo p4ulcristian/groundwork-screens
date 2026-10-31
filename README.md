@@ -40,6 +40,7 @@ re-frame and no Reagent, checked by a test.
 | `find-answer` | `(screens/find-answer db question)`: the same as `[:groundwork-screens/answer question]`, read inside an event handler from its `db`; it reads only, and a question nothing holds is `{:status :loading}` ([why](decisions/2026-10-23-a-held-answer-is-read-in-an-event-handler-by-find-answer.md)) |
 | `[:groundwork-screens/ask-again question]` | a held question asked again now |
 | `[:groundwork-screens/once-answered question event]` | `event` gets the data once: now, or, while a fresher answer is on its way (groundwork-live-updates's `is-question-being-asked?`) or none is there, with the next good answer |
+| `[:groundwork-screens/once-settled question event]` | `event` gets once how the question settled, as `send`'s event does, `{:status :ready :data …}` or `{:status :error :error refusal}` (a `:refresh-error` settled on its refusal): now, or, while a fresher answer is on its way or none is there, with the next answer, good or refused; a question let go first tells it nothing ([why](decisions/2026-10-31-once-settled-tells-a-waiting-flow-how-a-question-settled.md)) |
 | `[:groundwork-screens/send [name params] event options]` `make-once-key` | a write, through `:send-write!` with its options written out, `{:once-key k :keep-alive? false}` (a missing one is refused, `:groundwork-screens/bad-send`): the key is the caller's, made with `(screens/make-once-key)` when a draft starts and passed on every Save of that draft, so a second Save is the same write; `:keep-alive? true` lets the write finish after the page closes ([why](decisions/2026-10-23-every-send-writes-out-its-options-its-once-key-among-them.md)); sent again with the same options while it is answered `:groundwork-steps/no-answer` (`:retry-writes`), never for another refusal; `event` gets `{:status :ready :data …}` or `{:status :error :error refusal}`; a good answer asks again what its notes name |
 | `:on-signed-out` (a start setting) | the first answer (a question's or a write's) refused with `:signed-out-reason` dispatches it once per start, with the page to return to after signing in: `[:app/to-login {:page :orders/page :params {…} :query {…}}]` |
 | `[:groundwork-screens/can-i? action scope]` (sub) | from the `:actions-question`'s answer, checked by `:actions-answer-shape` (groundwork-access's `my-actions-answer-shape`) through the app's `:shaper`; `scope` is `[kind id]` or a list of them |
@@ -50,8 +51,8 @@ re-frame and no Reagent, checked by a test.
 | `show-page` | `[screens/show-page draw-page]`: the page, or the `:placeholder` while the page's `:module` loads (`:load-module!`, on the way in) |
 | `mount-root!` | `[root]` drawn into the element with this id once the first catalogs are in (the element keeps its splash until then); again after a save; before `:groundwork-screens/start` it throws, `:groundwork-screens/mounted-before-start` |
 
-Nothing asks before `:groundwork-screens/start`: watch, own, ask-again, once-answered
-and send throw `:groundwork-screens/asked-before-start`, naming the messages.
+Nothing asks before `:groundwork-screens/start`: watch, own, ask-again, once-answered,
+once-settled and send throw `:groundwork-screens/asked-before-start`, naming the messages.
 
 ## An orders page
 

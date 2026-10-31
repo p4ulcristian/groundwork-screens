@@ -29,3 +29,4 @@ parlor rebuilds the browser half of Groundwork v0.5.0 (now the groundwork compos
 - [The unsaved-changes hold asks with the app's own dialog](2026-10-23-the-hold-asks-with-the-apps-own-dialog.md) (built on tidy-up, not released)
 - [A held answer is read inside an event handler by `find-answer`](2026-10-23-a-held-answer-is-read-in-an-event-handler-by-find-answer.md) (built on tidy-up, not released)
 - [groundwork-screens follows the address bar itself, requires no wire, and keeps Reagent in its views](2026-10-24-groundwork-screens-follows-the-address-bar-and-keeps-reagent-in-its-views.md) (groundwork v4.0.0)
+- [once-settled tells a waiting flow how a question settled, a refusal too](2026-10-31-once-settled-tells-a-waiting-flow-how-a-question-settled.md)

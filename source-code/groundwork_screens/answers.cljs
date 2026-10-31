@@ -18,6 +18,12 @@
      data is there and no fresher answer is on its way, else with the next
      good answer; a failed answer, or the question let go, tells it
      nothing.
+   - :groundwork-screens/once-settled tells an event once how the question
+     settled, in :groundwork-screens/send's shape, {:status :ready :data …}
+     or {:status :error :error answer}: now when the entry has settled
+     (ready, error, or refresh-error, told as the error it ended on) and no
+     fresher answer is on its way, else with the next answer, good or
+     refused; the question let go tells it nothing.
    - :groundwork-screens/send sends a message that changes data, through the start's
      :send-write!, with its options written out: {:once-key :keep-alive?},
      the one-time key made by the caller (make-once-key) and kept with its
@@ -37,7 +43,7 @@
      the page the person was on, {:page :params :query}: the first such
      answer does, however many come at once.
    - Nothing asks before :groundwork-screens/start: watch, own, ask-again,
-     once-answered and send throw, naming the messages."
+     once-answered, once-settled and send throw, naming the messages."
   (:require
    [clojure.string :as str]
    [groundwork-live-updates.api :as live-updates]
@@ -109,7 +115,8 @@
               (if (empty? owners)
                 [(-> screens
                      (update :answers dissoc question)
-                     (update :waiting dissoc question))
+                     (update :waiting dissoc question)
+                     (update :settling dissoc question))
                  (conj to-unwatch question)]
                 [(assoc-in screens [:answers question :owners] owners) to-unwatch])))
           [screens []]
@@ -135,22 +142,37 @@
   [screens owner]
   (let-go screens owner (held-by screens owner)))
 
+(defn make-settled-answer
+  "How an answer settled, as :groundwork-screens/send's event and
+   once-settled's are told it: {:status :ready :data answer}, or
+   {:status :error :error answer} for a refusal."
+  [answer]
+  (if (failed? answer)
+    {:status :error :error answer}
+    {:status :ready :data answer}))
+
 (defn take-answer
   "An answer from groundwork-live-updates: [groundwork-screens events-to-tell]. A question nothing
-   holds any more takes nothing. A good answer tells whoever waited for it,
-   with its data; a failed one drops them."
+   holds any more takes nothing. A good answer tells whoever waited for it
+   with once-answered, with its data; a failed one drops them. Whoever
+   waited with once-settled is told either, as it settled
+   (make-settled-answer)."
   [screens question answer]
   (if-let [entry (get-in screens [:answers question])]
-    (let [waiting (get-in screens [:waiting question])
-          entry   (cond
+    (let [waiting  (get-in screens [:waiting question])
+          settling (get-in screens [:settling question])
+          entry    (cond
                     (not (failed? answer))  {:status :ready :data answer :owners (:owners entry)}
                     (contains? entry :data) {:status :refresh-error :data (:data entry) :error answer
                                              :owners (:owners entry)}
                     :else                   {:status :error :error answer :owners (:owners entry)})]
       [(-> screens
            (assoc-in [:answers question] entry)
-           (update :waiting dissoc question))
-       (if (failed? answer) [] (mapv #(conj % answer) waiting))])
+           (update :waiting dissoc question)
+           (update :settling dissoc question))
+       (into (if (failed? answer) [] (mapv #(conj % answer) waiting))
+             (map #(conj % (make-settled-answer answer)))
+             settling)])
     [screens []]))
 
 (defn ask-again
@@ -185,6 +207,26 @@
       (and (#{:ready :refresh-error} status) (not newer-coming?)) [screens (conj event (:data entry))]
       (#{:loading :ready :refresh-error} status)                  [(wait) nil]
       :else                                                       [screens nil])))
+
+(defn once-settled
+  "Something waits once for how a question settled: [groundwork-screens
+   settled-now-or-nil], told as :groundwork-screens/send's event is,
+   {:status :ready :data …} or {:status :error :error answer}. With the
+   entry settled (ready, error, or refresh-error, which settled on its
+   refusal) and no fresher answer coming (newer-coming?, from
+   groundwork-live-updates) it is told at once; while loading, or with a
+   fresher answer coming, it waits for the next answer, good or refused;
+   a question nothing holds tells it nothing. It waits apart from
+   once-answered's, under :settling."
+  [screens question event newer-coming?]
+  (let [{:keys [status] :as entry} (get-in screens [:answers question])
+        wait                       #(update-in screens [:settling question] (fnil conj []) event)]
+    (cond
+      (and (#{:ready :error :refresh-error} status) (not newer-coming?))
+      [screens (conj event (make-settled-answer (find-last-answer entry)))]
+
+      (#{:loading :ready :error :refresh-error} status) [(wait) nil]
+      :else                                            [screens nil])))
 
 (defn find-changed-tables
   "The tables a write's notes say it read and wrote, or :any when it
@@ -279,9 +321,7 @@
                             (when (is-signed-out? data (:signed-out-reason started))
                               (rf/dispatch [:groundwork-screens/-signed-out]))
                             (when on-answer
-                              (rf/dispatch (conj on-answer (if (failed? data)
-                                                             {:status :error :error data}
-                                                             {:status :ready :data data}))))))))))
+                              (rf/dispatch (conj on-answer (make-settled-answer data))))))))))
 
 (rf/reg-event-fx :groundwork-screens/-signed-out
                  (fn [{:keys [db]} _]
@@ -357,6 +397,14 @@
                  (fn [{:keys [db] newer-coming? :groundwork-screens/-newer-coming?} [_ question event]]
                    (started! db "once-answered" [question])
                    (let [[screens now] (once-answered (screens-of db) question event (newer-coming? question))]
+                     (cond-> {:db (assoc db :groundwork-screens screens)}
+                       now (assoc :fx [[:dispatch now]])))))
+
+(rf/reg-event-fx :groundwork-screens/once-settled
+                 [(rf/inject-cofx :groundwork-screens/-newer-coming)]
+                 (fn [{:keys [db] newer-coming? :groundwork-screens/-newer-coming?} [_ question event]]
+                   (started! db "once-settled" [question])
+                   (let [[screens now] (once-settled (screens-of db) question event (newer-coming? question))]
                      (cond-> {:db (assoc db :groundwork-screens screens)}
                        now (assoc :fx [[:dispatch now]])))))
 

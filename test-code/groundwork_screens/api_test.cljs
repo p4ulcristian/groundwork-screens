@@ -184,10 +184,13 @@
                          [[:groundwork-screens/own :orders-page [[:orders/all {}]]] [:orders/all]]
                          [[:groundwork-screens/ask-again [:orders/all {}]] [:orders/all]]
                          [[:groundwork-screens/once-answered [:orders/all {}] [:test/heard]] [:orders/all]]
+                         [[:groundwork-screens/once-settled [:orders/all {}] [:test/heard]] [:orders/all]]
                          [[:groundwork-screens/send [:orders/move {:order/id "1"}] [:test/heard] {:once-key (screens/make-once-key) :keep-alive? false}] [:orders/move]]]]
     (let [{:keys [type message-names]} (thrown-data #(rf/dispatch-sync event))]
       (is (= :groundwork-screens/asked-before-start type) (str (first event) " throws"))
       (is (= names message-names) "naming the messages")))
+  (is (= "once-settled" (:what (thrown-data #(rf/dispatch-sync [:groundwork-screens/once-settled [:orders/all {}] [:test/heard]]))))
+      "and the event")
   (is (= {:type :groundwork-screens/mounted-before-start :element-id "app"}
          (thrown-data #(screens/mount-root! "app" (fn [] [:div]))))
       "nor is a root drawn: its texts would be their keys' names")
@@ -327,6 +330,111 @@
                                              (fn []
                                                (is (= [[:after-write 3]] @heard)
                                                    "after a write that touched its table: the answer the write's change asked for")
+                                               (done))))))))))
+
+(deftest once-settled-tells-how-it-settled-now
+  (async done
+         (let [{:keys [failing send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _       (start! send-message! {})
+               good    [:orders/one {:order/id "7"}]
+               refused [:shops/one {:shop/id "s-1"}]]
+           (swap! failing conj :shops/one)
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [good refused]])
+           (after-ms 20
+                     (fn []
+                       (rf/dispatch-sync [:groundwork-screens/once-settled good [:test/heard :ready]])
+                       (rf/dispatch-sync [:groundwork-screens/once-settled refused [:test/heard :error]])
+                       (after-ms 10
+                                 (fn []
+                                   (is (= [[:ready {:status :ready :data 1}] [:error {:status :error :error not-found}]] @heard)
+                                       "settled: told at once, good data or the refusal, in send's shape")
+                                   (reset! heard [])
+                                   (swap! failing conj :orders/one)
+                                   (rf/dispatch-sync [:groundwork-screens/ask-again good])
+                                   (after-ms 20
+                                             (fn []
+                                               (is (= {:status :refresh-error :data 1 :error not-found} (sub [:groundwork-screens/answer good])))
+                                               (rf/dispatch-sync [:groundwork-screens/once-settled good [:test/heard :refresh-error]])
+                                               (after-ms 10
+                                                         (fn []
+                                                           (is (= [[:refresh-error {:status :error :error not-found}]] @heard)
+                                                               "a refresh-error settled on its refusal: told the error, not the old data")
+                                                           (done))))))))))))
+
+(deftest once-settled-waits-for-the-next-answer-good-or-refused
+  (async done
+         (let [{:keys [failing send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _       (start! send-message! {})
+               good    [:orders/one {:order/id "7"}]
+               refused [:shops/one {:shop/id "s-1"}]]
+           (swap! failing conj :shops/one)
+           (rf/dispatch-sync [:groundwork-screens/once-settled good [:test/heard :nothing-holds-it]])
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [good refused]])
+           (rf/dispatch-sync [:groundwork-screens/once-settled good [:test/heard :waited-good]])
+           (rf/dispatch-sync [:groundwork-screens/once-settled refused [:test/heard :waited-refused]])
+           (after-ms 20
+                     (fn []
+                       (is (= [[:waited-good {:status :ready :data 1}] [:waited-refused {:status :error :error not-found}]] @heard)
+                           "loading: told by the next answer, good or refused; nothing for a question nothing holds")
+                       (reset! heard [])
+                       (rf/dispatch-sync [:groundwork-screens/ask-again good])
+                       (rf/dispatch-sync [:groundwork-screens/once-settled good [:test/heard :fresher-coming]])
+                       (is (= [] @heard) "a fresher answer on its way: it waits, not told the data there")
+                       (after-ms 20
+                                 (fn []
+                                   (is (= [[:fresher-coming {:status :ready :data 2}]] @heard) "told the fresh answer")
+                                   (reset! heard [])
+                                   (rf/dispatch-sync [:groundwork-screens/ask-again good])
+                                   (rf/dispatch-sync [:groundwork-screens/ask-again refused])
+                                   (after-ms 20
+                                             (fn []
+                                               (is (= {:status :ready :data 3} (sub [:groundwork-screens/answer good])))
+                                               (is (= [] @heard) "told only once: later answers tell no one")
+                                               (done))))))))))
+
+(deftest once-settled-let-go-before-settling-tells-nothing
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _ (start! send-message! {})
+               q [:orders/one {:order/id "7"}]]
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+           (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :let-go]])
+           (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :let-go-answered]])
+           (rf/dispatch-sync [:groundwork-screens/release :wizard])
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+           (after-ms 20
+                     (fn []
+                       (is (= :ready (:status (sub [:groundwork-screens/answer q]))) "held again, and answered")
+                       (is (= [] @heard) "the waiters of the question let go were dropped, both kinds")
+                       (done))))))
+
+(deftest once-answered-is-unchanged-beside-once-settled
+  (async done
+         (let [{:keys [failing send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _ (start! send-message! {})
+               q [:orders/one {:order/id "7"}]]
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+           (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :answered]])
+           (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :settled]])
+           (after-ms 20
+                     (fn []
+                       (is (= [[:answered 1] [:settled {:status :ready :data 1}]] @heard)
+                           "a good answer tells both, each in its own shape")
+                       (reset! heard [])
+                       (swap! failing conj :orders/one)
+                       (rf/dispatch-sync [:groundwork-screens/ask-again q])
+                       (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :answered]])
+                       (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :settled]])
+                       (after-ms 20
+                                 (fn []
+                                   (is (= [[:settled {:status :error :error not-found}]] @heard)
+                                       "a refusal tells once-settled; once-answered's waiter is dropped, as before")
+                                   (reset! heard [])
+                                   (swap! failing disj :orders/one)
+                                   (rf/dispatch-sync [:groundwork-screens/ask-again q])
+                                   (after-ms 20
+                                             (fn []
+                                               (is (= [] @heard) "the dropped once-answered waiter isn't told the next good answer")
                                                (done))))))))))
 
 (deftest a-write-asks-again-what-it-touched
