@@ -15,14 +15,16 @@
                  (fn [{:keys [db]} [_ start-settings]]
                    (let [started            (assoc (settings/check-start-settings start-settings) :stops (atom {}))
                          before             (get-in db [:groundwork-screens :started])
-                         screens             {:started started :answers {} :waiting {} :page nil}
+                         ;; the holds keep counting: an answer queued from the first start's holds is told of none of these
+                         screens             {:started started :answers {} :waiting {} :page nil
+                                              :last-hold (get-in db [:groundwork-screens :last-hold] 0)}
                          {:keys [actions-question]} started
                          [screens to-watch]  (if actions-question
                                               (answers/add-owner screens :groundwork-screens/start [actions-question])
                                               [screens []])
                          [screens fetch-fx]  (texts/start-texts screens)]
                      {:db (assoc db :groundwork-screens screens)
-                      :fx (cond-> fetch-fx
-                            before         (conj [:groundwork-screens/-unwatch-all before])
-                            (seq to-watch) (conj [:groundwork-screens/-watch {:started started :questions to-watch}])
-                            true           (conj [:groundwork-screens/-follow-address (select-keys started [:pages :query-shapes-of-pages :languages])]))})))
+                      :fx (-> (cond-> fetch-fx
+                                before (conj [:groundwork-screens/-unwatch-all before]))
+                              (into (answers/watching-effects screens to-watch []))
+                              (conj [:groundwork-screens/-follow-address (select-keys started [:pages :query-shapes-of-pages :languages])]))})))

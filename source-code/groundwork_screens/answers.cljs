@@ -24,6 +24,12 @@
      (ready, error, or refresh-error, told as the error it ended on) and no
      fresher answer is on its way, else with the next answer, good or
      refused; the question let go tells it nothing.
+   - A question held again is told groundwork-live-updates's kept answer at
+     once and asked afresh: the entry shows the kept answer meanwhile, and
+     it tells no one waiting (once-answered, once-settled), who wait for
+     the fresh answer. Each hold is numbered; an answer told of an earlier
+     hold, its event queued while the question was let go and held again,
+     is taken by nothing.
    - :groundwork-screens/send sends a message that changes data, through the start's
      :send-write!, with its options written out: {:once-key :keep-alive?},
      the one-time key made by the caller (make-once-key) and kept with its
@@ -95,15 +101,26 @@
 
 (defn add-owner
   "An owner holds these questions too: [groundwork-screens questions-to-watch], the
-   ones nothing held before."
+   ones nothing held before. Each of those starts a new hold, numbered:
+   the answers groundwork-live-updates tells of it carry the number, so an
+   answer told of an earlier hold of the same question is told of nothing."
   [screens owner questions]
   (reduce (fn [[screens to-watch] question]
             (if (contains? (:answers screens) question)
               [(update-in screens [:answers question :owners] conj owner) to-watch]
-              [(assoc-in screens [:answers question] {:status :loading :owners #{owner}})
-               (conj to-watch question)]))
+              (let [hold (inc (:last-hold screens 0))]
+                [(-> screens
+                     (assoc :last-hold hold)
+                     (assoc-in [:answers question] {:status :loading :owners #{owner} :hold hold}))
+                 (conj to-watch question)])))
           [screens []]
           (distinct questions)))
+
+(defn find-holds
+  "The holds of these held questions, by question, for
+   :groundwork-screens/-watch."
+  [screens questions]
+  (into {} (map (fn [question] [question (get-in screens [:answers question :hold])])) questions))
 
 (defn let-go
   "An owner lets go of these questions: [groundwork-screens questions-to-unwatch], the
@@ -151,28 +168,43 @@
     {:status :error :error answer}
     {:status :ready :data answer}))
 
+(defn is-taken?
+  "Whether an answer groundwork-live-updates told of this hold of the
+   question is taken: the question is held, by the same hold. One told of
+   an earlier hold, let go since, its event still queued, is not."
+  [screens question hold]
+  (let [entry (get-in screens [:answers question])]
+    (and (some? entry) (= hold (:hold entry)))))
+
 (defn take-answer
-  "An answer from groundwork-live-updates: [groundwork-screens events-to-tell]. A question nothing
-   holds any more takes nothing. A good answer tells whoever waited for it
-   with once-answered, with its data; a failed one drops them. Whoever
+  "An answer from groundwork-live-updates, told of a hold of the question
+   ({:hold n :kept? bool}): [groundwork-screens events-to-tell]. One not
+   taken (is-taken?) takes nothing. A good answer tells whoever waited for
+   it with once-answered, with its data; a failed one drops them. Whoever
    waited with once-settled is told either, as it settled
-   (make-settled-answer)."
-  [screens question answer]
-  (if-let [entry (get-in screens [:answers question])]
-    (let [waiting  (get-in screens [:waiting question])
+   (make-settled-answer). The answer groundwork-live-updates kept, told
+   again when the question is held again (:kept? true), is shown but tells
+   no one: watching asks the question afresh, so a fresher answer is on its
+   way, and the waiters wait for it."
+  [screens question answer {:keys [hold kept?]}]
+  (if (is-taken? screens question hold)
+    (let [entry    (get-in screens [:answers question])
+          waiting  (get-in screens [:waiting question])
           settling (get-in screens [:settling question])
+          held     (select-keys entry [:owners :hold])
           entry    (cond
-                    (not (failed? answer))  {:status :ready :data answer :owners (:owners entry)}
-                    (contains? entry :data) {:status :refresh-error :data (:data entry) :error answer
-                                             :owners (:owners entry)}
-                    :else                   {:status :error :error answer :owners (:owners entry)})]
-      [(-> screens
-           (assoc-in [:answers question] entry)
-           (update :waiting dissoc question)
-           (update :settling dissoc question))
-       (into (if (failed? answer) [] (mapv #(conj % answer) waiting))
-             (map #(conj % (make-settled-answer answer)))
-             settling)])
+                    (not (failed? answer))  (assoc held :status :ready :data answer)
+                    (contains? entry :data) (assoc held :status :refresh-error :data (:data entry) :error answer)
+                    :else                   (assoc held :status :error :error answer))]
+      (if kept?
+        [(assoc-in screens [:answers question] entry) []]
+        [(-> screens
+             (assoc-in [:answers question] entry)
+             (update :waiting dissoc question)
+             (update :settling dissoc question))
+         (into (if (failed? answer) [] (mapv #(conj % answer) waiting))
+               (map #(conj % (make-settled-answer answer)))
+               settling)]))
     [screens []]))
 
 (defn ask-again
@@ -182,7 +214,7 @@
   (let [entry (get-in screens [:answers question])]
     (cond
       (nil? entry)               [screens false]
-      (= :error (:status entry)) [(assoc-in screens [:answers question] {:status :loading :owners (:owners entry)}) true]
+      (= :error (:status entry)) [(assoc-in screens [:answers question] (assoc (select-keys entry [:owners :hold]) :status :loading)) true]
       :else                      [screens true])))
 
 (defn find-last-answer
@@ -254,12 +286,18 @@
                       {:type :groundwork-screens/asked-before-start :what what :message-names (vec names)})))))
 
 (rf/reg-fx :groundwork-screens/-watch
-           (fn [{:keys [started questions]}]
+           (fn [{:keys [started holds]}]
              (let [{:keys [store stops]} started]
-               (doseq [question questions]
+               (doseq [[question hold] holds]
                  (when-not (contains? @stops question)
-                   (swap! stops assoc question
-                          (live-updates/watch-question! store question #(rf/dispatch [:groundwork-screens/-answered question %]))))))))
+                   ;; watch-question! tells its kept answer now, inside the call, before
+                   ;; it asks afresh: told while kept? is true, that one is marked kept
+                   (let [kept? (volatile! true)
+                         stop  (live-updates/watch-question! store question
+                                                             #(rf/dispatch [:groundwork-screens/-answered question %
+                                                                            {:hold hold :kept? @kept?}]))]
+                     (vreset! kept? false)
+                     (swap! stops assoc question stop)))))))
 
 (rf/reg-fx :groundwork-screens/-unwatch
            (fn [{:keys [started questions]}]
@@ -329,10 +367,14 @@
                      {:db (assoc db :groundwork-screens screens)
                       :fx (mapv (fn [event] [:dispatch event]) events)})))
 
-(defn- watching-effects [started to-watch to-unwatch]
-  (cond-> []
-    (seq to-unwatch) (conj [:groundwork-screens/-unwatch {:started started :questions to-unwatch}])
-    (seq to-watch)   (conj [:groundwork-screens/-watch {:started started :questions to-watch}])))
+(defn watching-effects
+  "The effects of letting go of to-unwatch, then watching to-watch, each
+   under its hold."
+  [screens to-watch to-unwatch]
+  (let [{:keys [started]} screens]
+    (cond-> []
+      (seq to-unwatch) (conj [:groundwork-screens/-unwatch {:started started :questions to-unwatch}])
+      (seq to-watch)   (conj [:groundwork-screens/-watch {:started started :holds (find-holds screens to-watch)}]))))
 
 (defn own-in-db
   "The db and effects of an owner holding exactly these questions; the
@@ -340,14 +382,14 @@
   [db owner questions]
   (let [[screens to-watch to-unwatch] (own (screens-of db) owner questions)]
     {:db (assoc db :groundwork-screens screens)
-     :fx (watching-effects (:started screens) to-watch to-unwatch)}))
+     :fx (watching-effects screens to-watch to-unwatch)}))
 
 (rf/reg-event-fx :groundwork-screens/watch
                  (fn [{:keys [db]} [_ owner questions]]
                    (started! db "watch" questions)
                    (let [[screens to-watch] (add-owner (screens-of db) owner questions)]
                      {:db (assoc db :groundwork-screens screens)
-                      :fx (watching-effects (:started screens) to-watch [])})))
+                      :fx (watching-effects screens to-watch [])})))
 
 (rf/reg-event-fx :groundwork-screens/own
                  (fn [{:keys [db]} [_ owner questions]]
@@ -358,13 +400,13 @@
                  (fn [{:keys [db]} [_ owner]]
                    (let [[screens to-unwatch] (release (screens-of db) owner)]
                      {:db (assoc db :groundwork-screens screens)
-                      :fx (watching-effects (:started screens) [] to-unwatch)})))
+                      :fx (watching-effects screens [] to-unwatch)})))
 
 (rf/reg-event-fx :groundwork-screens/-answered
-                 (fn [{:keys [db]} [_ question answer]]
+                 (fn [{:keys [db]} [_ question answer told]]
                    (let [screens          (screens-of db)
-                         held?           (contains? (:answers screens) question)
-                         [screens tell]   (take-answer screens question answer)
+                         held?           (is-taken? screens question (:hold told))
+                         [screens tell]   (take-answer screens question answer told)
                          failed-event    (get-in screens [:started :on-answer-failed])
                          [screens signed] (if (and held? (is-signed-out? answer (get-in screens [:started :signed-out-reason])))
                                            (tell-signed-out screens)
@@ -424,7 +466,7 @@
   "An entry as it is read: its status and data or error, loading for a
    question nothing holds."
   [answers question]
-  (dissoc (get answers question {:status :loading}) :owners))
+  (dissoc (get answers question {:status :loading}) :owners :hold))
 
 (defn find-answer
   "A held answer read inside an event handler, from its db: what the

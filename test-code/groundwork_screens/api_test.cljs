@@ -437,6 +437,130 @@
                                                (is (= [] @heard) "the dropped once-answered waiter isn't told the next good answer")
                                                (done))))))))))
 
+(defn- answer-later
+  "The stand-in's send-message!, answering ms later: the ask stays out a
+   while."
+  [send-message! ms]
+  (fn [message]
+    (js/Promise. (fn [resolve _] (js/setTimeout #(resolve (send-message! message)) ms)))))
+
+(defn- make-hand-answered-server
+  "A send-message! whose asks stay out until the test answers them, in
+   the order asked: (answer-next! data)."
+  []
+  (let [pending (atom [])]
+    {:send-message! (fn [message]
+                      (let [[message-name] (first message)]
+                        (js/Promise. (fn [resolve _] (swap! pending conj #(resolve {message-name %}))))))
+     :answer-next!  (fn [data]
+                      (let [answer! (first @pending)]
+                        (swap! pending (comp vec rest))
+                        (answer! data)))}))
+
+(rf/reg-event-fx :test/read-it-fresh
+                 (fn [_ [_ owner question]]
+                   {:fx [[:dispatch [:groundwork-screens/release owner]]
+                         [:dispatch [:groundwork-screens/watch owner [question]]]
+                         [:dispatch [:groundwork-screens/once-settled question [:test/heard :settled]]]
+                         [:dispatch [:groundwork-screens/once-answered question [:test/heard :answered]]]]}))
+
+(deftest held-again-the-waiters-wait-for-the-fresh-answer
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _ (start! send-message! {})
+               q [:orders/one {:order/id "7"}]]
+           (rf/dispatch-sync [:groundwork-screens/own :wizard [q]])
+           (after-ms 20
+                     (fn []
+                       (rf/dispatch-sync [:groundwork-screens/own :wizard []])
+                       (rf/dispatch-sync [:groundwork-screens/own :wizard [q]])
+                       (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :settled]])
+                       (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :answered]])
+                       (after-ms 20
+                                 (fn []
+                                   (is (= [[:answered 2] [:settled {:status :ready :data 2}]] @heard)
+                                       "let go, held again: told the fresh answer, not groundwork-live-updates's kept one")
+                                   (reset! heard [])
+                                   (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :settled-now]])
+                                   (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :answered-now]])
+                                   (after-ms 10
+                                             (fn []
+                                               (is (= [[:settled-now {:status :ready :data 2}] [:answered-now 2]] @heard)
+                                                   "settled, nothing asked: told at once, as before")
+                                               (done))))))))))
+
+(deftest released-and-watched-in-one-step-the-waiters-wait-for-the-fresh-answer
+  (async done
+         (let [{:keys [send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _ (start! (answer-later send-message! 15) {})
+               q [:orders/one {:order/id "7"}]]
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+           (after-ms 30
+                     (fn []
+                       (rf/dispatch-sync [:test/read-it-fresh :wizard q])
+                       (after-ms 5
+                                 (fn []
+                                   (is (= {:status :ready :data 1} (sub [:groundwork-screens/answer q]))
+                                       "the kept answer is shown while the fresh one comes")
+                                   (is (= [] @heard) "the waiters wait: a fresh ask is out")
+                                   (after-ms 30
+                                             (fn []
+                                               (is (= {:status :ready :data 2} (sub [:groundwork-screens/answer q])))
+                                               (is (= [[:answered 2] [:settled {:status :ready :data 2}]] @heard)
+                                                   "told the fresh answer")
+                                               (done))))))))))
+
+(deftest held-again-a-kept-refusal-is-shown-and-once-settled-waits
+  (async done
+         (let [{:keys [failing send-message!]} (make-stand-in-server {} (fn [_ n] n))
+               _ (start! (answer-later send-message! 15) {})
+               q [:shops/one {:shop/id "s-1"}]]
+           (swap! failing conj :shops/one)
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+           (after-ms 30
+                     (fn []
+                       (swap! failing disj :shops/one)
+                       (rf/dispatch-sync [:groundwork-screens/release :wizard])
+                       (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+                       (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :settled]])
+                       (after-ms 5
+                                 (fn []
+                                   (is (= {:status :error :error not-found} (sub [:groundwork-screens/answer q]))
+                                       "the kept refusal is shown, its status as before")
+                                   (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :settled-later]])
+                                   (is (= [] @heard) "neither waiter is told the kept refusal")
+                                   (after-ms 30
+                                             (fn []
+                                               (is (= [[:settled {:status :ready :data 2}] [:settled-later {:status :ready :data 2}]] @heard)
+                                                   "both told the fresh answer")
+                                               (done))))))))))
+
+(deftest an-answer-from-before-the-question-was-held-again-tells-no-waiter
+  (async done
+         (let [{:keys [send-message! answer-next!]} (make-hand-answered-server)
+               _ (start! send-message! {})
+               q [:orders/one {:order/id "7"}]]
+           (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+           ;; the answer lands in groundwork-live-updates; its event is still queued in
+           ;; re-frame when the flow lets go and holds the question again
+           (answer-next! 1)
+           (js/queueMicrotask
+            (fn []
+              (rf/dispatch-sync [:groundwork-screens/release :wizard])
+              (rf/dispatch-sync [:groundwork-screens/watch :wizard [q]])
+              (rf/dispatch-sync [:groundwork-screens/once-settled q [:test/heard :settled]])
+              (rf/dispatch-sync [:groundwork-screens/once-answered q [:test/heard :answered]])
+              (after-ms 10
+                        (fn []
+                          (is (= {:status :ready :data 1} (sub [:groundwork-screens/answer q])) "shown")
+                          (is (= [] @heard) "the ask asked again after the one out lands is on its way")
+                          (answer-next! 2)
+                          (after-ms 10
+                                    (fn []
+                                      (is (= [[:answered 2] [:settled {:status :ready :data 2}]] @heard)
+                                          "told the answer asked after it was held again")
+                                      (done))))))))))
+
 (deftest a-write-asks-again-what-it-touched
   (async done
          (let [{:keys [asked failing offline send-message!]}

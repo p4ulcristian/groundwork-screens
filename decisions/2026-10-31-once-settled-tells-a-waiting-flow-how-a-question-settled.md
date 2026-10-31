@@ -1,5 +1,7 @@
 # once-settled tells a waiting flow how a question settled, a refusal too
 
+> **Changed in part** by [A question held again: its kept answer is shown, and the waiters wait for the fresh one](2026-10-31-a-question-held-again-waits-for-its-fresh-answer.md) (2026-10-31): the kept answer told when a question is held again tells no waiter; they wait for the fresh one.
+
 > The user's decision, 2026-10-31, after seeing an example. Adds to [Owners hold questions](2026-10-22-owners-hold-questions.md) and [parlor uses its libraries' own functions; once-answered waits for an answer on its way](2026-10-23-parlor-uses-its-libraries-own-functions.md); `once-answered` stays as it is.
 
 **What was wrong:** a flow that reads a question once and continues from the answer needs to hear a refusal too. Iron Rainbow's service-area wizard reads the shop's partnership request: a 404 means "this shop hasn't booked yet", and the wizard goes on from there. The Flex shell reads the workspace: a 403 or a 404 means "back to the picker". `once-answered` tells only good data, and `:on-answer-failed` is the app's one hook for every question, not the waiting flow's.
