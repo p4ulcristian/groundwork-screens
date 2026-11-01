@@ -1,5 +1,7 @@
 # A send that throws or fails is a failed answer: the write's event runs, and the bug is reported
 
+> **Changed in part** by [A send's own promise is chained as it is, with no extra turn](2026-11-01-a-sends-own-promise-is-chained-as-it-is.md) (2026-11-01, v0.8.14): the throw is caught around the call, not by a promise's constructor.
+
 > The user's decision, 2026-11-01 (the libraries never hang a form again). Since v0.8.13. Changes in part [A write carries a one-time key, kept across its retries](2026-10-23-a-write-carries-a-one-time-key-kept-across-its-retries.md): a failed promise was passed on. Goes with groundwork-bridge's [Params that don't fit are answered `:groundwork-steps/invalid` in the browser, not thrown](https://github.com/p4ulcristian/groundwork-bridge/blob/main/decisions/2026-11-01-params-that-dont-fit-are-answered-invalid-in-the-browser-not-thrown.md).
 
 **What was wrong:** `:groundwork-screens/send`'s effect waited only for an answer. A `:send-write!` that threw (groundwork-bridge's `send-message!` threw for params that didn't fit their shape, before any promise existed) or whose promise failed left the write's event unrun: an uncaught error, and the form "saving" for good. Found on Iron Rainbow's setup wizard.

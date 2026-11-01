@@ -354,20 +354,31 @@
     (js/reportError error)
     (js/console.error error)))
 
+(defn- start-send
+  "(send-write! message send-options) as it returns it, so the send's own
+   promise is chained with no extra turn; a throw, or a value that isn't a
+   promise, becomes a failed promise."
+  [send-write! message send-options]
+  (let [sent (try (send-write! message send-options)
+                  (catch :default error (js/Promise.reject error)))]
+    (if (and (some? sent) (fn? (unchecked-get sent "then")))
+      sent
+      (js/Promise.reject (ex-info (str ":send-write! returned " (pr-str sent) ", not a promise of the answer")
+                                  {:type :groundwork-screens/send-without-promise})))))
+
 (defn send-with-retries
   "(send-write! message send-options), and again with the same options,
    the same key among them, while the message's name is answered
    :groundwork-steps/no-answer, up to times more, wait-ms apart. A promise of the
-   last answer; it never fails. A send-write! that throws, or whose
-   promise fails, is a bug (groundwork-bridge's send-message! fails none
+   last answer; it never fails. A send-write! that throws, returns no
+   promise, or whose promise fails, is a bug (groundwork-bridge's send-message! fails none
    for want of an answer, nor for params that don't fit): it is reported
    (report-send-failure!) and the message's name is answered send-failed,
    :groundwork-steps/failed, never sent again, so the page's own failure
    handling runs instead of a form waiting forever."
   [send-write! message send-options {:keys [times wait-ms] :as retry-writes}]
   (let [message-name (key (first message))]
-    ;; the promise's own constructor turns a throw inside send-write! into a failed promise
-    (-> (js/Promise. (fn [resolve _] (resolve (send-write! message send-options))))
+    (-> (start-send send-write! message send-options)
         (.then (fn [answer]
                  (if (and (pos? times) (is-no-answer? (get answer message-name)))
                    (-> (js/Promise. (fn [resolve _] (js/setTimeout resolve wait-ms)))

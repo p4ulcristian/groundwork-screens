@@ -706,6 +706,36 @@
                                        (put-back!)
                                        (done))))))))))
 
+(defn- settled-at-once
+  "A promise settled already with value, whose then runs its callback at
+   once and gives another such promise: a test harness's own."
+  [value]
+  #js {:then (fn [on-fulfilled _] (settled-at-once (if on-fulfilled (on-fulfilled value) value)))})
+
+(deftest a-sends-own-promise-is-chained-with-no-extra-turn
+  (let [told  (atom [])
+        _     (start! (:send-message! (make-stand-in-server {} (fn [_ n] n)))
+                      {:send-write! (fn [_ _] (settled-at-once {:orders/move {:moved 1}}))})]
+    (with-redefs [rf/dispatch #(swap! told conj %)]
+      (rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] [:test/heard :moved] {:once-key "k" :keep-alive? false}]))
+    (is (= [[:test/heard :moved {:status :ready :data {:moved 1}}]] @told)
+        "the answer is told in the same step the send's promise gives it")))
+
+(deftest a-send-without-a-promise-is-a-failed-answer
+  (async done
+         (let [reported (atom [])
+               _        (start! (:send-message! (make-stand-in-server {} (fn [_ n] n)))
+                                {:send-write! (fn [_ _] {:orders/move {:moved 1}})})]
+           (with-reported-errors reported
+             (fn [put-back!]
+               (rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] [:test/heard :plain] {:once-key "k" :keep-alive? false}])
+               (after-ms 20
+                         (fn []
+                           (put-back!)
+                           (is (= [[:plain {:status :error :error send-failed}]] @heard))
+                           (is (= [:groundwork-screens/send-without-promise] (mapv (comp :type ex-data) @reported)))
+                           (done))))))))
+
 (deftest a-send-that-throws-is-shown-in-the-console-without-report-error
   (async done
          (let [logged (atom [])
