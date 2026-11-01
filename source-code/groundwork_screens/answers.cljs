@@ -37,7 +37,9 @@
      whether the request finishes after the page closes. A send answered
      :groundwork-steps/no-answer (groundwork-steps's: no answer came) is sent again with the
      same key, the start's :retry-writes, and the server saves it once;
-     any other refusal is the server's answer. Its event
+     any other refusal is the server's answer. A send that throws, or
+     whose promise fails, is a bug: reported as an uncaught error is, and
+     answered :groundwork-steps/failed, never sent again. Its event
      gets {:status :ready :data answer} or {:status :error :error answer},
      the refusal as the send gives it, {:groundwork-steps/refused … :groundwork-steps/data …
      :groundwork-steps/request-id …}. A good answer asks again, through groundwork-live-updates,
@@ -61,7 +63,9 @@
   "Whether an answer is a refusal rather than data: groundwork-steps's
    is-error-answer?, a map carrying :groundwork-steps/refused (the server's
    reasons, and the browser's own: :groundwork-steps/no-answer,
-   :groundwork-steps/unfit)."
+   :groundwork-steps/unfit, :groundwork-steps/invalid for params that
+   don't fit, and :groundwork-steps/failed for a send that threw or
+   failed)."
   [answer]
   (steps/is-error-answer? answer))
 
@@ -333,21 +337,45 @@
   []
   (str (random-uuid)))
 
+(def send-failed
+  "groundwork-steps's :groundwork-steps/failed, as the browser answers a
+   write whose send threw or whose promise failed: a bug, reported as an
+   uncaught error is; no request id, nothing having answered."
+  (steps/make-refusal :groundwork-steps/failed nil))
+
+(defn report-send-failure!
+  "What a send threw, or its promise failed with, reported as the browser
+   reports an uncaught error (reportError: the console shows it, and the
+   page's error listeners hear it, an app's error list among them), though
+   nothing throws; the console's error where the browser has no
+   reportError."
+  [error]
+  (if (exists? js/reportError)
+    (js/reportError error)
+    (js/console.error error)))
+
 (defn send-with-retries
   "(send-write! message send-options), and again with the same options,
    the same key among them, while the message's name is answered
    :groundwork-steps/no-answer, up to times more, wait-ms apart. A promise of the
-   last answer. A promise send-write! fails is passed on as it is:
-   groundwork-bridge's send-message! fails none for want of an answer, so it is a
-   bug, not a refusal."
+   last answer; it never fails. A send-write! that throws, or whose
+   promise fails, is a bug (groundwork-bridge's send-message! fails none
+   for want of an answer, nor for params that don't fit): it is reported
+   (report-send-failure!) and the message's name is answered send-failed,
+   :groundwork-steps/failed, never sent again, so the page's own failure
+   handling runs instead of a form waiting forever."
   [send-write! message send-options {:keys [times wait-ms] :as retry-writes}]
   (let [message-name (key (first message))]
-    (-> (send-write! message send-options)
+    ;; the promise's own constructor turns a throw inside send-write! into a failed promise
+    (-> (js/Promise. (fn [resolve _] (resolve (send-write! message send-options))))
         (.then (fn [answer]
                  (if (and (pos? times) (is-no-answer? (get answer message-name)))
                    (-> (js/Promise. (fn [resolve _] (js/setTimeout resolve wait-ms)))
                        (.then #(send-with-retries send-write! message send-options (assoc retry-writes :times (dec times)))))
-                   answer))))))
+                   answer))
+               (fn [error]
+                 (report-send-failure! error)
+                 {message-name send-failed})))))
 
 (rf/reg-fx :groundwork-screens/-send
            (fn [{:keys [started message-name params on-answer send-options]}]

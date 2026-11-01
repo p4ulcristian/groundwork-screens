@@ -6,6 +6,8 @@
 
 > **Changed in part** by [The family and its composer are groundwork](https://github.com/p4ulcristian/groundwork/blob/Starting-from-the-bottom/decisions/2026-10-23-the-family-and-its-composer-are-groundwork.md) (2026-10-23): manor, the family, and house, the composer, are both named groundwork now.
 
+> **Changed in part** by [A send that throws or fails is a failed answer](2026-11-01-a-send-that-throws-or-fails-is-a-failed-answer.md) (2026-11-01, v0.8.13): a failed promise is no longer passed on; it is reported and answered `:groundwork-steps/failed`, never sent again.
+
 > The user's decision, 2026-10-23 (house's "run-once keys for every write"). Since v0.4.0. Changes in part [What parlor leaves out of Groundwork v0.5.0](2026-10-22-what-parlor-leaves-out.md) (the one-time `:key` is back) and [Every start setting is required](2026-10-22-every-start-setting-is-required.md): `:send-message!` is replaced by `:send-write!`, and `:retry-writes` is new. Carries over Groundwork v0.5.0's `::send-write` (`(assoc ask :key (or (:key ask) (str (random-uuid))))`).
 
 **Decision:**

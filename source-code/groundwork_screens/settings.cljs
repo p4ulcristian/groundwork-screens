@@ -29,6 +29,9 @@
    in the idempotency-key header and :keep-alive? as it is). groundwork-bridge's
    send-message!: a promise that doesn't fail for want of an answer; the network, the
    server down, a page that isn't an answer are its :groundwork-steps/no-answer.
+   One that throws, or whose promise fails, is a bug: reported as an
+   uncaught error is (reportError), and the send's event gets
+   :groundwork-steps/failed.
    :retry-writes: {:times n :wait-ms ms}: a send answered :groundwork-steps/no-answer
    is sent again, with the same key, up to :times more, :wait-ms apart, so
    the server saves it once; {:times 0 …} for never. Any other refusal is

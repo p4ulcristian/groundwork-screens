@@ -654,6 +654,77 @@
       (rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] nil {:once-key "k-1" :keep-alive? true}])
       (is (= [{:once-key "k-1" :keep-alive? true}] @sent)))))
 
+(defn- with-reported-errors
+  "Runs (f), which calls done when finished, with the browser's
+   reportError kept in reported; put back by (f)'s done."
+  [reported f]
+  (let [had? (exists? js/reportError)
+        was  (when had? js/reportError)]
+    (set! (.-reportError js/globalThis) #(swap! reported conj %))
+    (f (fn [] (if had? (set! (.-reportError js/globalThis) was) (js-delete js/globalThis "reportError"))))))
+
+(def ^:private send-failed
+  "groundwork-steps's :groundwork-steps/failed, as the browser answers a send that threw or failed."
+  {:groundwork-steps/refused :groundwork-steps/failed :groundwork-steps/data nil})
+
+(deftest a-send-that-throws-or-fails-is-a-failed-answer
+  (async done
+         (let [reported (atom [])
+               sends    (atom 0)
+               failure  (atom nil)
+               _        (start! (:send-message! (make-stand-in-server {} (fn [_ n] n)))
+                                {:send-write!  (fn [_ _]
+                                                 (swap! sends inc)
+                                                 (case @failure
+                                                   :throw  (throw (ex-info "params don't fit" {:type :test/thrown}))
+                                                   :reject (js/Promise.reject (ex-info "rejected" {:type :test/rejected}))))
+                                 :retry-writes {:times 2 :wait-ms 1}})]
+           (with-reported-errors reported
+             (fn [put-back!]
+               (reset! failure :throw)
+               (is (nil? (thrown-data #(rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :thrown]
+                                                          {:once-key (screens/make-once-key) :keep-alive? false}])))
+                   "nothing throws out of the send")
+               (after-ms 30
+                         (fn []
+                           (is (= [[:thrown {:status :error :error send-failed}]] @heard)
+                               "a send that throws: its event gets the failed answer")
+                           (is (= [:test/thrown] (mapv (comp :type ex-data) @reported)) "reported as an uncaught error is")
+                           (is (= 1 @sends) "a bug isn't sent again")
+                           (reset! heard [])
+                           (reset! reported [])
+                           (reset! sends 0)
+                           (reset! failure :reject)
+                           (rf/dispatch-sync [:groundwork-screens/send [:orders/move {:order/id "7"}] [:test/heard :rejected]
+                                              {:once-key (screens/make-once-key) :keep-alive? false}])
+                           (after-ms 30
+                                     (fn []
+                                       (is (= [[:rejected {:status :error :error send-failed}]] @heard)
+                                           "a send whose promise fails: the same")
+                                       (is (= [:test/rejected] (mapv (comp :type ex-data) @reported)))
+                                       (is (= 1 @sends))
+                                       (put-back!)
+                                       (done))))))))))
+
+(deftest a-send-that-throws-is-shown-in-the-console-without-report-error
+  (async done
+         (let [logged (atom [])
+               error! (.-error js/console)
+               had?   (exists? js/reportError)
+               was    (when had? js/reportError)
+               _      (start! (:send-message! (make-stand-in-server {} (fn [_ n] n)))
+                              {:send-write! (fn [_ _] (throw (ex-info "thrown" {:type :test/thrown})))})]
+           (when had? (js-delete js/globalThis "reportError"))
+           (set! (.-error js/console) #(swap! logged conj %))
+           (rf/dispatch-sync [:groundwork-screens/send [:orders/move {}] [:test/heard :thrown] {:once-key "k" :keep-alive? false}])
+           (after-ms 20
+                     (fn []
+                       (set! (.-error js/console) error!)
+                       (when had? (set! (.-reportError js/globalThis) was))
+                       (is (= [[:thrown {:status :error :error send-failed}]] @heard))
+                       (is (= [:test/thrown] (mapv (comp :type ex-data) @logged)))
+                       (done))))))
+
 (deftest a-write-without-notes-asks-again-everything-watched
   (async done
          (let [{:keys [asked send-message!]} (make-stand-in-server {:orders/all ["orders"] :shops/all ["shops"]}
