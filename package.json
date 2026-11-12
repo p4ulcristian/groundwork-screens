@@ -6,11 +6,11 @@
     "test": "shadow-cljs compile test"
   },
   "dependencies": {
-    "intl-messageformat": "12.1.4",
+    "intl-messageformat": "12.1.5",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "shadow-cljs": "3.5.7"
+    "shadow-cljs": "3.5.14"
   }
 }
