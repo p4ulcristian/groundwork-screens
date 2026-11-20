@@ -12,7 +12,7 @@ the db (the routing is groundwork-screens's own: pages are drawn here, so
 moving between them is here too).
 
 ```clojure
-io.github.p4ulcristian/groundwork-screens {:git/tag "v0.8.17" :git/sha "7605b6e"}
+io.github.p4ulcristian/groundwork-screens {:git/tag "v0.8.18" :git/sha "cefab09"}
 ```
 
 Needs re-frame 1.4.7, Reagent 2.0.1, reitit-frontend (the pages matched),
